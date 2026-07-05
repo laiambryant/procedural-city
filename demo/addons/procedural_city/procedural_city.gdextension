@@ -1,0 +1,12 @@
+[configuration]
+entry_symbol = "procedural_city_library_init"
+compatibility_minimum = "4.4"
+reloadable = true
+
+[libraries]
+windows.debug.x86_64 = "res://addons/procedural_city/bin/libprocedural_city.windows.template_debug.x86_64.dll"
+windows.release.x86_64 = "res://addons/procedural_city/bin/libprocedural_city.windows.template_release.x86_64.dll"
+linux.debug.x86_64 = "res://addons/procedural_city/bin/libprocedural_city.linux.template_debug.x86_64.so"
+linux.release.x86_64 = "res://addons/procedural_city/bin/libprocedural_city.linux.template_release.x86_64.so"
+macos.debug = "res://addons/procedural_city/bin/libprocedural_city.macos.template_debug.framework"
+macos.release = "res://addons/procedural_city/bin/libprocedural_city.macos.template_release.framework"

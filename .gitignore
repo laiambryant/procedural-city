@@ -11,18 +11,16 @@
 *.gch
 *.pch
 
-# Linker files
+# Linker/debug files
 *.ilk
-
-# Debugger Files
 *.pdb
+*.exp
 
 # Compiled Dynamic libraries
 *.so
 *.dylib
 *.dll
 *.so.*
-
 
 # Fortran module files
 *.mod
@@ -39,6 +37,9 @@
 *.out
 *.app
 
+# Godot hot-reload lock files (e.g. ~libprocedural_city.*.dll)
+~*
+
 # Build directories
 build/
 Build/
@@ -48,9 +49,12 @@ build-*/
 CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
-Makefile
 install_manifest.txt
 compile_commands.json
+
+# SCons cache
+.sconsign.dblite
+.sconf_temp/
 
 # Temporary files
 *.tmp
@@ -67,3 +71,26 @@ vcpkg_installed/
 # test output & cache
 Testing/
 .cache/
+
+# godot-cpp submodule build artifacts are ignored, but keep the source
+godot-cpp/bin/
+godot-cpp/gen/
+
+# Godot editor cache (regenerated automatically, never needs to be committed)
+.godot/
+
+# Editor / tool-specific local settings (not part of the project)
+.vscode/
+.claude/
+
+# OS cruft
+.DS_Store
+Thumbs.db
+
+# Re-include the bundled goplacementx CLI binaries (override *.exe / *.dll above)
+!**/goplacementx/**
+!**/goplacementx/**/*.exe
+!**/goplacementx/**/*
+
+# Generated PNG/JSON artifacts from the tool
+*.png.import
