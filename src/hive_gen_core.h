@@ -1,0 +1,61 @@
+#ifndef HIVE_GEN_CORE_H
+#define HIVE_GEN_CORE_H
+
+#include <godot_cpp/classes/random_number_generator.hpp>
+#include <godot_cpp/classes/ref_counted.hpp>
+#include <godot_cpp/core/binder_common.hpp>
+#include <godot_cpp/variant/array.hpp>
+#include <godot_cpp/variant/dictionary.hpp>
+#include <godot_cpp/variant/string.hpp>
+#include <godot_cpp/variant/vector2i.hpp>
+
+#include <unordered_set>
+#include <vector>
+
+namespace godot {
+
+// HiveGenCore is the C++ port of the-beehive's GDScript floor planner
+// (res://scripts/systems/gen_core_fallback.gd). NativeBridge.get_gen_core()
+// instantiates this class whenever the extension is loaded, so the two
+// implementations must stay call-for-call identical: same seed, same RNG
+// stream, same plan. Contract: primitives in, primitives out.
+//
+//   plan_floor(seed: int, main_length: int, branch_count: int,
+//              include_boss: bool, pool_data: Array) -> Array[Dictionary]
+//
+// Each returned Dictionary: cell (Vector2i), pool_index (int),
+// connections (int doorway bitmask, bit0 N/bit1 E/bit2 S/bit3 W),
+// kind (String), order (int), parent_order (int).
+class HiveGenCore : public RefCounted {
+	GDCLASS(HiveGenCore, RefCounted)
+
+	using CellSet = std::unordered_set<uint64_t>;
+
+	static uint64_t _cell_key(const Vector2i &p_cell);
+	static bool _occupied_has(const CellSet &p_occupied, const Vector2i &p_cell);
+
+	Array _try_plan(const Ref<RandomNumberGenerator> &p_rng, int p_main_length,
+			int p_branch_count, bool p_include_boss, const Array &p_pool_data) const;
+	int _pick_step(const Ref<RandomNumberGenerator> &p_rng, const Vector2i &p_from,
+			int p_heading, const CellSet &p_occupied) const;
+	int _free_side(const Ref<RandomNumberGenerator> &p_rng, const Vector2i &p_cell,
+			int p_preferred, const CellSet &p_occupied) const;
+	void _connect_rooms(Dictionary p_room_a, Dictionary p_room_b) const;
+	int _pick_template(const Ref<RandomNumberGenerator> &p_rng, const Array &p_pool_data,
+			const String &p_kind, int p_avoid_index) const;
+	void _shuffle(const Ref<RandomNumberGenerator> &p_rng, Array &p_arr) const;
+
+protected:
+	static void _bind_methods();
+
+public:
+	Array plan_floor(int64_t p_seed, int p_main_length, int p_branch_count,
+			bool p_include_boss, const Array &p_pool_data) const;
+
+	HiveGenCore() {}
+	~HiveGenCore() {}
+};
+
+} // namespace godot
+
+#endif // HIVE_GEN_CORE_H
