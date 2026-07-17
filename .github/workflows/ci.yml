@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  SCONS_CACHE: ${{ github.workspace }}/.scons-cache
+
+jobs:
+  format:
+    name: clang-format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check formatting
+        run: |
+          shopt -s globstar
+          clang-format --dry-run --Werror src/**/*.cpp src/**/*.h
+
+  build:
+    name: Build (${{ matrix.platform }}, ${{ matrix.target }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux
+            target: template_debug
+            runner: ubuntu-latest
+          - platform: linux
+            target: template_release
+            runner: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install SCons
+        run: pip install scons
+
+      - name: Restore SCons cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.SCONS_CACHE }}
+          key: scons-${{ matrix.platform }}-${{ matrix.target }}-${{ hashFiles('.gitmodules', 'SConstruct') }}
+          restore-keys: |
+            scons-${{ matrix.platform }}-${{ matrix.target }}-
+
+      # godot-cpp's SConstruct picks up the SCONS_CACHE env var (set above)
+      # and routes the build through SCons CacheDir.
+      - name: Build
+        run: scons platform=${{ matrix.platform }} target=${{ matrix.target }}
+
+      - name: Upload library
+        uses: actions/upload-artifact@v4
+        with:
+          name: libprocedural_city-${{ matrix.platform }}-${{ matrix.target }}
+          path: demo/addons/procedural_city/bin/

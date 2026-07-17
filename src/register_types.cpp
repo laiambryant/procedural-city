@@ -2,14 +2,17 @@
 
 #include <gdextension_interface.h>
 
+#include <godot_cpp/classes/engine.hpp>
 #include <godot_cpp/core/defs.hpp>
+#include <godot_cpp/core/memory.hpp>
 #include <godot_cpp/godot.hpp>
 
-#include "goplacementx_params.h"
-#include "goplacementx_runner.h"
-#include "heightmap_mesher.h"
-#include "hive_gen_core.h"
-#include "proc_city_generator.h"
+#include "cli/goplacementx_params.h"
+#include "cli/goplacementx_runner.h"
+#include "cli/gpu_server.h"
+#include "core/proc_city_generator.h"
+#include "hive/hive_gen_core.h"
+#include "meshing/heightmap_mesher.h"
 
 using namespace godot;
 
@@ -22,11 +25,18 @@ void initialize_procedural_city_module(ModuleInitializationLevel p_level) {
 	GDREGISTER_CLASS(HeightmapMesher);
 	GDREGISTER_CLASS(HiveGenCore);
 	GDREGISTER_CLASS(ProcCityGenerator);
+	GDREGISTER_CLASS(ProcCityGpuServer);
+	Engine::get_singleton()->register_singleton("ProcCityGpuServer", memnew(ProcCityGpuServer));
 }
 
 void uninitialize_procedural_city_module(ModuleInitializationLevel p_level) {
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
+	}
+	if (ProcCityGpuServer *server = ProcCityGpuServer::get_singleton()) {
+		server->shutdown();
+		Engine::get_singleton()->unregister_singleton("ProcCityGpuServer");
+		memdelete(server);
 	}
 }
 

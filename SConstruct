@@ -6,8 +6,9 @@ import os
 # (4.4): `git submodule update --init --recursive`.
 env = SConscript("godot-cpp/SConstruct")
 
+# All includes are rooted at src/ (e.g. #include "meshing/packed_surface.h").
 env.Append(CPPPATH=["src/"])
-sources = Glob("src/*.cpp")
+sources = Glob("src/*.cpp") + Glob("src/*/*.cpp")
 
 libbase = "demo/addons/procedural_city/bin/libprocedural_city"
 

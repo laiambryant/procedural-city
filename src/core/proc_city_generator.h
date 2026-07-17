@@ -13,9 +13,11 @@
 #include <godot_cpp/variant/vector2.hpp>
 #include <godot_cpp/variant/vector2i.hpp>
 
-#include "goplacementx_params.h"
+#include "cli/goplacementx_params.h"
 
 namespace godot {
+
+class MeshInstance3D;
 
 // ProcCityGenerator drives the goplacementx CLI to produce a displacement map,
 // builds extruded block geometry from it (ArrayMesh / MultiMesh / CSG), and
@@ -24,6 +26,10 @@ class ProcCityGenerator : public Node3D {
 	GDCLASS(ProcCityGenerator, Node3D)
 
 public:
+	enum GenerationMode {
+		GEN_CPU = 0,
+		GEN_GPU = 1,
+	};
 	enum BuildMode {
 		BUILD_ARRAY_MESH = 0,
 		BUILD_MULTIMESH = 1,
@@ -38,8 +44,8 @@ public:
 	// colour texture, one texture shared across all channels, or independent maps
 	// routed into the R/G/B/Roughness/Height channels.
 	enum TextureMode {
-		TEX_SINGLE = 0, // one colour map -> Albedo; scalar roughness/metallic
-		TEX_SHARED = 1, // one map -> Albedo (colour) + Roughness + Height
+		TEX_SINGLE = 0,	  // one colour map -> Albedo; scalar roughness/metallic
+		TEX_SHARED = 1,	  // one map -> Albedo (colour) + Roughness + Height
 		TEX_CHANNELS = 2, // five maps -> R, G, B, Roughness, Height
 	};
 
@@ -52,10 +58,18 @@ private:
 	};
 
 	Ref<GoplacementxParams> params;
+	int generation_mode = GEN_CPU;
 	Vector2 mesh_size = Vector2(10, 10);
 	Vector2i grid_vertices = Vector2i(32, 32);
 	double height_scale = 2.0;
 	double base_height = 0.0;
+	// height_power remaps the sampled height (v^power): > 1 thins the skyline
+	// into a few tall towers, < 1 raises the low blocks. 1 = linear.
+	double height_power = 1.0;
+	// block_inset > 0 (fraction of a cell per side) shrinks every block's
+	// footprint, turning the merged grid into freestanding buildings with
+	// streets between them (ArrayMesh adds a ground plane).
+	double block_inset = 0.0;
 	int build_mode = BUILD_ARRAY_MESH;
 	int sample_filter = 1;
 	int max_cells = 8192;
@@ -70,6 +84,11 @@ private:
 	Rect2 hive_flat_rect;
 	double hive_rim_boost = 0.0;
 	double hive_rim_falloff = 24.0;
+	bool hive_floor = true;
+	// Baked look: vertex-colour AO strength and per-cell luminance variation.
+	// Zero disables each effect. Block tops stay single flat quads.
+	double ao_strength = 0.7;
+	double color_variation = 0.12;
 	int material_mode = MATERIAL_STANDARD;
 	int texture_mode = TEX_SINGLE;
 	double normal_strength = 1.0;
@@ -80,6 +99,12 @@ private:
 	bool texture_repeat = true;
 	bool keep_intermediate_png = false;
 	bool persist_in_scene = true;
+	bool generate_collision = false;
+	int collision_layer = 1;
+	// When no binary is found locally, fetch the latest godisplacementx
+	// release from GitHub and cache it under user://.
+	bool auto_download_binary = true;
+	bool use_gpu_server = false;
 	String binary_path_override;
 	String output_dir;
 
@@ -99,6 +124,7 @@ private:
 	// _apply_material_main routes them onto the material.
 	int _material_texture_mode = TEX_SINGLE;
 	int64_t _resolved_seed = 0;
+	int _last_generation_used = GEN_CPU;
 	Ref<Thread> _worker;
 	bool _busy = false;
 
@@ -106,16 +132,33 @@ private:
 	String _resolve_output_dir() const;
 	Node *_get_generated() const;
 	void _set_owner_recursive(Node *p_node, Node *p_owner);
+	String _cell_budget_error() const;
+
 	bool _build_geometry_main();
+	Node3D *_make_geometry_container();
+	Node3D *_make_multimesh_node();
+	Node3D *_make_csg_node();
+	Node3D *_make_hex_node();
+	Node3D *_make_blocks_node();
 	// Swaps p_container in as the GeneratedCity child (removes the old one,
 	// handles editor ownership and the material override). Main thread only.
 	void _install_geometry(Node3D *p_container);
-	void _apply_material_main();
-	Ref<Image> _compose_rgb_albedo();
-	void _start_pipeline(int p_stages, bool p_fresh_seed);
+	void _attach_collision(Node3D *p_container);
+	void _attach_trimesh_body(MeshInstance3D *p_mesh_instance);
+	void _attach_multimesh_body(Node3D *p_container);
 
+	void _apply_material_main();
+	Ref<Image> _resolve_albedo_image();
+	Ref<Image> _resolve_roughness_image() const;
+	void _apply_material_to_generated();
+
+	void _start_pipeline(int p_stages, bool p_fresh_seed);
+	Dictionary _snapshot_job(int p_stages) const;
 	void _thread_body(Dictionary p_job);
 	void _apply_results(Dictionary p_result);
+	void _store_result_images(const Dictionary &p_result);
+	bool _apply_result_geometry(const Dictionary &p_result);
+	void _finish_worker();
 	void _emit_failed(String p_stage, String p_message);
 	void _cleanup_temp(const Dictionary &p_result);
 
@@ -134,8 +177,15 @@ public:
 	double get_height_scale() const { return height_scale; }
 	void set_base_height(double p_v) { base_height = p_v; }
 	double get_base_height() const { return base_height; }
+	void set_height_power(double p_v) { height_power = p_v; }
+	double get_height_power() const { return height_power; }
+	void set_block_inset(double p_v) { block_inset = p_v; }
+	double get_block_inset() const { return block_inset; }
 	void set_build_mode(int p_v) { build_mode = p_v; }
 	int get_build_mode() const { return build_mode; }
+	void set_generation_mode(int p_v) { generation_mode = p_v; }
+	int get_generation_mode() const { return generation_mode; }
+	int get_last_generation_mode_used() const { return _last_generation_used; }
 	void set_sample_filter(int p_v) { sample_filter = p_v; }
 	int get_sample_filter() const { return sample_filter; }
 	void set_max_cells(int p_v) { max_cells = p_v; }
@@ -152,6 +202,12 @@ public:
 	double get_hive_rim_boost() const { return hive_rim_boost; }
 	void set_hive_rim_falloff(double p_v) { hive_rim_falloff = p_v; }
 	double get_hive_rim_falloff() const { return hive_rim_falloff; }
+	void set_hive_floor(bool p_v) { hive_floor = p_v; }
+	bool get_hive_floor() const { return hive_floor; }
+	void set_ao_strength(double p_v) { ao_strength = p_v; }
+	double get_ao_strength() const { return ao_strength; }
+	void set_color_variation(double p_v) { color_variation = p_v; }
+	double get_color_variation() const { return color_variation; }
 	void set_material_mode(int p_v) { material_mode = p_v; }
 	int get_material_mode() const { return material_mode; }
 	void set_texture_mode(int p_v) { texture_mode = p_v; }
@@ -172,10 +228,23 @@ public:
 	bool get_keep_intermediate_png() const { return keep_intermediate_png; }
 	void set_persist_in_scene(bool p_v) { persist_in_scene = p_v; }
 	bool get_persist_in_scene() const { return persist_in_scene; }
+	void set_generate_collision(bool p_v) { generate_collision = p_v; }
+	bool get_generate_collision() const { return generate_collision; }
+	void set_collision_layer(int p_v) { collision_layer = p_v; }
+	int get_collision_layer() const { return collision_layer; }
+	void set_auto_download_binary(bool p_v) { auto_download_binary = p_v; }
+	bool get_auto_download_binary() const { return auto_download_binary; }
+	void set_use_gpu_server(bool p_v) { use_gpu_server = p_v; }
+	bool get_use_gpu_server() const { return use_gpu_server; }
 	void set_binary_path_override(const String &p_v) { binary_path_override = p_v; }
 	String get_binary_path_override() const { return binary_path_override; }
 	void set_output_dir(const String &p_v) { output_dir = p_v; }
 	String get_output_dir() const { return output_dir; }
+
+	// Direct access to the cached displacement image: lets scripts feed their
+	// own heightmap into Build Geometry without running the CLI.
+	void set_height_image(const Ref<Image> &p_image) { _height_image = p_image; }
+	Ref<Image> get_height_image() const { return _height_image; }
 
 	void generate_displacement();
 	void build_geometry();
@@ -199,6 +268,7 @@ public:
 
 } // namespace godot
 
+VARIANT_ENUM_CAST(godot::ProcCityGenerator::GenerationMode);
 VARIANT_ENUM_CAST(godot::ProcCityGenerator::BuildMode);
 VARIANT_ENUM_CAST(godot::ProcCityGenerator::MaterialMode);
 VARIANT_ENUM_CAST(godot::ProcCityGenerator::TextureMode);

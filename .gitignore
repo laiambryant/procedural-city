@@ -5,6 +5,7 @@
 *.slo
 *.lo
 *.o
+*.os
 *.obj
 
 # Precompiled Headers
@@ -55,6 +56,7 @@ compile_commands.json
 # SCons cache
 .sconsign.dblite
 .sconf_temp/
+.scons-cache/
 
 # Temporary files
 *.tmp
@@ -87,10 +89,9 @@ godot-cpp/gen/
 .DS_Store
 Thumbs.db
 
-# Re-include the bundled goplacementx CLI binaries (override *.exe / *.dll above)
-!**/goplacementx/**
-!**/goplacementx/**/*.exe
-!**/goplacementx/**/*
+# The godisplacementx CLI is not committed: the extension downloads the latest
+# GitHub release on demand (or uses a binary dropped into
+# addons/procedural_city/godisplacementx/<platform>/, which stays untracked).
 
 # Generated PNG/JSON artifacts from the tool
 *.png.import
