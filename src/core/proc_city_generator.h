@@ -246,6 +246,8 @@ public:
 	void set_height_image(const Ref<Image> &p_image) { _height_image = p_image; }
 	Ref<Image> get_height_image() const { return _height_image; }
 
+	Dictionary get_cell_heights() const;
+
 	void generate_displacement();
 	void build_geometry();
 	void generate_material();
