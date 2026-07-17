@@ -1,0 +1,35 @@
+# Godot-style formatting (matches the upstream godot/godot-cpp .clang-format),
+# so extension code reads like engine code. Run: clang-format -i src/**/*.{h,cpp}
+BasedOnStyle: LLVM
+Standard: c++17
+
+AccessModifierOffset: -4
+AllowShortFunctionsOnASingleLine: Inline
+BreakConstructorInitializers: AfterColon
+ColumnLimit: 0
+ConstructorInitializerIndentWidth: 8
+ContinuationIndentWidth: 8
+Cpp11BracedListStyle: false
+IndentCaseLabels: true
+IndentWidth: 4
+JavaScriptQuotes: Double
+KeepEmptyLinesAtTheStartOfBlocks: false
+PackConstructorInitializers: NextLine
+RemoveSemicolon: false
+SpacesInLineCommentPrefix:
+  Minimum: 1
+  Maximum: -1
+TabWidth: 4
+UseTab: Always
+
+IncludeCategories:
+  - Regex: '^"(core|meshing|cli|material|hive)/'
+    Priority: 1
+  - Regex: '^"'
+    Priority: 2
+  - Regex: '^<gdextension_interface.h>$'
+    Priority: 3
+  - Regex: '^<godot_cpp/'
+    Priority: 4
+  - Regex: '.*'
+    Priority: 5

@@ -11,16 +11,31 @@
 
 namespace godot {
 
-#define GPX_FIELD(m_type, m_name, m_default)                          \
-private:                                                              \
-	m_type m_name = m_default;                                        \
-                                                                      \
-public:                                                               \
-	void set_##m_name(m_type p_value) {                               \
-		m_name = p_value;                                             \
-		emit_changed();                                              \
-	}                                                                 \
-	m_type get_##m_name() const { return m_name; }
+// Default square output size of the generated maps; also the fallback the
+// runner and GPU server use when handed a null params resource.
+inline constexpr int GPX_DEFAULT_RESOLUTION = 2048;
+// Stop count used by the one-click Randomize Palette action.
+inline constexpr int GPX_RANDOM_PALETTE_STOPS = 4;
+// Seed value generate_random_palette treats as "pick a fresh random seed".
+inline constexpr int GPX_FRESH_SEED = 0;
+// palette_preset index that selects the user-edited gradient_colors; the
+// remaining indices are the built-in presets, in PALETTE_HINT order.
+inline constexpr int GPX_PALETTE_CUSTOM = 0;
+// A gradient needs two stops to interpolate at all.
+inline constexpr int GPX_MIN_PALETTE_STOPS = 2;
+
+#define GPX_FIELD(m_type, m_name, m_default) \
+private:                                     \
+	m_type m_name = m_default;               \
+                                             \
+public:                                      \
+	void set_##m_name(m_type p_value) {      \
+		m_name = p_value;                    \
+		emit_changed();                      \
+	}                                        \
+	m_type get_##m_name() const {            \
+		return m_name;                       \
+	}
 
 // GoplacementxParams mirrors the goplacementx Params JSON shape (plus the
 // per-call render options that are passed as CLI flags rather than stored in
@@ -29,11 +44,12 @@ class GoplacementxParams : public Resource {
 	GDCLASS(GoplacementxParams, Resource)
 
 	// --- Output / render options (CLI flags, NOT part of the config JSON) ---
-	GPX_FIELD(int, resolution, 2048)
+	GPX_FIELD(int, resolution, GPX_DEFAULT_RESOLUTION)
 	GPX_FIELD(int, out_width, 0)
 	GPX_FIELD(int, out_height, 0)
 	GPX_FIELD(int64_t, seed, 0)
 	GPX_FIELD(bool, randomize_seed, true)
+	GPX_FIELD(bool, fast, false)
 	GPX_FIELD(bool, invert, false)
 	GPX_FIELD(int, palette_preset, 0)
 	GPX_FIELD(PackedColorArray, gradient_colors, PackedColorArray())

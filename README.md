@@ -1,29 +1,44 @@
 # Procedural City — Godot 4.4 GDExtension
 
-A C++ GDExtension that drives the external **goplacementx** CLI to generate a
-procedural *displacement* map, builds extruded block geometry from it (the
+A C++ GDExtension that drives the external **godisplacementx** CLI to generate
+a procedural *displacement* map, builds extruded block geometry from it (the
 Blender "Grid → Extrude Mesh per face" workflow), and applies a CLI-generated
-albedo + normal material to the result.
+albedo + normal material to the result. The CLI is fetched automatically: if no
+binary is installed, the extension downloads the latest
+[godisplacementx release](https://github.com/laiambryant/godisplacementx/releases)
+from GitHub and caches it under `user://`.
 
-It exposes the full goplacementx parameter set inside the Godot inspector, plus
-a selectable geometry backend (**ArrayMesh** / **MultiMesh** / **CSG boxes**).
+It exposes the full godisplacementx parameter set inside the Godot inspector,
+plus a selectable geometry backend (**ArrayMesh** / **MultiMesh** / **CSG
+boxes** / **HexHive**) and baked styling (vertex-colour ambient occlusion and
+per-cell tint variation). Block tops are single flat faces.
 
 ---
 
 ## Contents
 
 ```
-src/                      C++ sources for the extension
+src/
+  register_types.cpp      GDExtension entry point
+  core/                   ProcCityGenerator node, pipeline, worker threading
+  meshing/                image → geometry backends (blocks, hex, multimesh, CSG)
+  cli/                    goplacementx params/runner, binary download, GPU server
+  material/               material assembly from the CLI-generated maps
+  hive/                   standalone HiveGenCore floor planner
 godot-cpp/                git submodule (branch 4.4) — the binding library
-thirdparty/goplacementx/  canonical home for the prebuilt CLI binaries
 demo/                     runnable Godot 4.4 project
   addons/procedural_city/
     bin/                  compiled extension libraries land here (build output)
-    goplacementx/<os>/    the bundled CLI binary, resolved at runtime
+    godisplacementx/<os>/ optional manually-installed CLI binary (untracked)
     procedural_city.gdextension
   scenes/main.tscn        a wired-up ProcCityGenerator
+docs/ARCHITECTURE.md      module map, threading & determinism contracts
+CONTRIBUTING.md           setup, code style, PR checklist
 SConstruct                top-level build script
 ```
+
+Design deep-dive: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · Contributor
+guide: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## Registered classes
 
@@ -43,7 +58,8 @@ SConstruct                top-level build script
 - A C++17 toolchain:
   - Windows: Visual Studio 2022 (Desktop C++ workload) — SCons auto-detects it.
   - Linux: `gcc`/`clang`. macOS: Xcode command-line tools.
-- The **goplacementx** repo (for building the CLI binary).
+- The **godisplacementx** repo is only needed if you want to hack on the CLI
+  itself — the extension downloads prebuilt release binaries on demand.
 
 ## 1. Get godot-cpp
 
@@ -66,30 +82,33 @@ compiles all of godot-cpp and takes several minutes; subsequent builds are
 incremental. Output libraries are written to
 `demo/addons/procedural_city/bin/`, which the `.gdextension` file references.
 
-## 3. Build & bundle the goplacementx CLI
+## 3. Get the godisplacementx CLI
 
-The plugin shells out to the **CLI** build of goplacementx (not the GUI). In the
-goplacementx repo:
+Normally you do nothing: on the first generation the extension queries GitHub
+for the latest [godisplacementx release](https://github.com/laiambryant/godisplacementx/releases),
+downloads the binary for your platform and caches it under
+`user://godisplacementx/bin/`. Delete that folder to force a re-download of a
+newer release. The behaviour can be disabled per-node with the
+**Auto Download Binary** property (Tool group).
+
+The CLI is resolved in this order:
+
+1. **Binary Path Override** (per-node property);
+2. a binary you dropped into the addon:
+   `demo/addons/procedural_city/godisplacementx/<windows|linux|macos>/godisplacementx-cli[.exe]`
+   (the legacy `goplacementx` folder/binary names still work);
+3. the `user://godisplacementx/bin/` download cache;
+4. a fresh download of the latest GitHub release (when auto-download is on).
+
+To build the CLI yourself instead (offline work, local changes), in the
+godisplacementx repo:
 
 ```powershell
-.\build.ps1 cli          # produces build\bin\goplacementx-cli.exe
+.\build.ps1 cli          # produces build\bin\godisplacementx-cli.exe
 ```
 
-Copy the binary next to the addon, under a per-platform folder:
-
-```
-demo/addons/procedural_city/goplacementx/windows/goplacementx-cli.exe
-demo/addons/procedural_city/goplacementx/linux/goplacementx-cli
-demo/addons/procedural_city/goplacementx/macos/goplacementx-cli
-```
-
-(The Windows binary is already bundled.) On Linux/macOS, mark it executable
-(`chmod +x`). You can override the location per-node via the **Binary Path
-Override** property.
-
-> **Git note:** the project `.gitignore` ignores `*.exe`/`*.so`. The bundled CLI
-> binaries are re-included via `!**/goplacementx/**`. If you add binaries for a
-> new platform and git ignores them, force-add: `git add -f path/to/binary`.
+then drop the binary into location 2 above (on Linux/macOS `chmod +x` it).
+Those folders are intentionally untracked.
 
 ---
 
@@ -102,6 +121,12 @@ Override** property.
 2. Select the `ProcCityGenerator` node. In the inspector:
    - Set **Mesh Size** (world meters), **Grid Vertices** (the Blender Grid
      resolution — one box per cell), **Height Scale**.
+   - Shape the skyline with **Height Power** (`v^power` remap: > 1 thins the
+     city into a few tall towers, < 1 raises the low blocks) and carve streets
+     with **Block Inset** (> 0 shrinks every block footprint, producing
+     freestanding buildings over an automatic ground plane).
+   - Enable **Generate Collision** for a `StaticBody3D` + trimesh shape under
+     the generated geometry (CSG mode uses its built-in `use_collision`).
    - Pick **Build Mode**: `ArrayMesh` (default; continuous material, fast),
      `MultiMesh` (GPU-instanced), or `CSG` (literal `CSGBox3D`s, capped).
    - Expand **Params** to tune every goplacementx layer (rect/grid/cols/rows/
@@ -137,6 +162,17 @@ gen.generation_failed.connect(func(stage, msg): push_error(msg))
 gen.generate_all()
 ```
 
+You can also skip the CLI entirely and drive the geometry from any grayscale
+`Image` of your own:
+
+```gdscript
+gen.set_height_image(my_heightmap)   # any Image; the first channel is sampled
+gen.height_power = 2.0               # optional skyline remap (v^power)
+gen.block_inset = 0.12               # optional streets between blocks
+gen.generate_collision = true        # optional StaticBody3D + trimesh shape
+gen.build_geometry()
+```
+
 ### Signals
 
 | Signal | Args |
@@ -149,9 +185,9 @@ gen.generate_all()
 
 ---
 
-## How it maps to goplacementx
+## How it maps to godisplacementx
 
-- `GoplacementxParams.to_json()` produces the exact `Params` shape goplacementx
+- `GoplacementxParams.to_json()` produces the exact `Params` shape the CLI
   expects (JSON tags such as `rectBrightness`, `compositionModes`, …). Each Go
   `Dual [min,max]` is a `Vector2i (x=min, y=max)`; the gradient is a
   `PackedColorArray`; composition modes / sprite packs are flag enums.
@@ -203,15 +239,67 @@ gen.generate_material()
 (`Nearest` for a crisp pixel-art look, `Linear` for smooth), and
 `texture_repeat`.
 
+### Style options (baked into the mesh)
+
+The **Style** group bakes lighting/variation cues into vertex colours at build
+time (no extra draw cost; multiplied into the albedo):
+
+| Property | Meaning |
+|---|---|
+| `ao_strength` | Ambient-occlusion strength: walls darken toward canyon floors, roofs darken beside taller neighbours, hex alley floors darken. `0` disables. |
+| `color_variation` | Seeded per-cell luminance variation that breaks texture repetition. `0` disables. |
+
+Walls also sample the texture with *draped* UVs (the roof mapping continued
+down the face) instead of the old planar projection, so vertical faces no
+longer smear a single texture row. The HexHive backend additionally gets a
+`hive_floor` ground plane so the gaps between cells read as alleys instead of
+holes.
+
+## Performance
+
+The generation pipeline is built for large grids and large maps:
+
+- **Meshers write exact-size packed arrays** (indexed triangles, analytic
+  per-face tangents) instead of per-vertex `SurfaceTool` calls and a mikktspace
+  pass — the block mesher builds a 65k-cell city in tens of milliseconds.
+- **Row-banded multithreading** everywhere the work is per-cell: height
+  sampling, block emission (two-pass: per-row quad counts → prefix sums →
+  disjoint writer ranges) and hex emission. Output is byte-identical for any
+  thread count.
+- **MultiMesh uploads one packed buffer** (`set_buffer`, 12 floats per
+  instance) instead of one `set_instance_transform` call per box.
+- **Intermediates skip the PNG round-trip**: the CLI emits the `.gdxraw`
+  interchange format (raw L8/RGB8/RGBA8 rows, 16-byte header) and the extension
+  maps it straight into an `Image` — no encode, no decode, height maps load as
+  single-channel L8. Set **Keep Intermediate PNG** to get inspectable PNGs
+  instead (slower).
+- **Height images decode lazily**: single-channel sources are sampled in place
+  with no copy or format conversion; other formats reduce to a compact
+  red-channel buffer once.
+
+`demo/tests/bench_meshers.gd` times the mesher backends headless;
+`demo/tests/multimesh_parity.gd` pins the multimesh buffer layout.
+
 ## Geometry notes
 
 - One extruded box per grid cell; `grid_vertices` downsamples the height image
   (`Nearest` or `BoxAverage` filter). Cells beyond **Max Cells** abort with a
   clear error.
+- `height_power` remaps every sampled height (`v^power`) before scaling;
+  `block_inset` (fraction of a cell per side, 0–0.45) switches the ArrayMesh
+  backend from merged blocks to freestanding buildings with streets and a
+  ground plane, and shrinks the box footprints in the other backends.
+- `generate_collision` adds `GeneratedCity/CollisionBody` (a `StaticBody3D`
+  with a `ConcavePolygonShape3D` built from the block geometry). CSG mode
+  enables the combiner's own `use_collision` instead.
 - **ArrayMesh** is the only backend that drapes the albedo/normal as a single
   continuous image over the whole surface (side walls between cells of differing
   height are generated; shared interior walls are skipped). MultiMesh and CSG
   tile the material per box.
+- Meshing is allocation-exact and index-based: the builders write straight
+  into preallocated packed arrays with analytic tangents (no SurfaceTool, no
+  mikktspace pass), sampling the height image in place for L8/RGB8/RGBA8
+  data. A 256×256-cell ArrayMesh city builds in ~40 ms (was ~590 ms).
 - **CSG** is expensive — Godot rebuilds the whole boolean union on every change.
   A warning is emitted past ~2048 boxes; prefer it only when you need a
   boolean-welded solid.
@@ -221,5 +309,6 @@ gen.generate_material()
 - Editor / authoring focused: the CLI is resolved from `res://` at dev time. For
   exported games, executables inside a PCK can't run; ship the CLI as a loose
   file and point **Binary Path Override** at it.
-- Cross-platform binaries must be built on each target OS (`goplacementx` ships a
-  Windows `build.ps1`; build the `cli` target on Linux/macOS too).
+- Release binaries exist for windows/amd64, linux/amd64+arm64 and
+  darwin/amd64+arm64; the auto-download picks the right one. Anything else needs
+  a locally built CLI.

@@ -1,0 +1,19 @@
+# Pragmatic check set for a godot-cpp GDExtension: correctness and readability
+# checks on, style families that fight the Godot naming/idiom conventions off.
+Checks: >
+  bugprone-*,
+  performance-*,
+  readability-magic-numbers,
+  readability-else-after-return,
+  readability-inconsistent-declaration-parameter-name,
+  modernize-use-nullptr,
+  modernize-use-override,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions
+WarningsAsErrors: ''
+HeaderFilterRegex: '^.*/src/.*'
+CheckOptions:
+  - key: readability-magic-numbers.IgnoredIntegerValues
+    value: '0;1;2;3;4;6;8;100;255'
+  - key: readability-magic-numbers.IgnoredFloatingPointValues
+    value: '0.0;0.5;1.0;2.0'
