@@ -1,6 +1,7 @@
 #include "core/proc_city_generator.h"
 
 #include "material/city_material_builder.h"
+#include "meshing/height_sampling.h"
 #include "meshing/heightmap_mesher.h"
 
 #include <godot_cpp/classes/collision_shape3d.hpp>
@@ -313,6 +314,27 @@ void ProcCityGenerator::_apply_material_to_generated() {
 	if (gi != nullptr) {
 		gi->set_material_override(_material);
 	}
+}
+
+Dictionary ProcCityGenerator::get_cell_heights() const {
+	Dictionary result;
+	if (_height_image.is_null()) {
+		return result;
+	}
+	const CellGrid grid = make_cell_grid(mesh_size, grid_vertices);
+	std::vector<float> heights;
+	if (!resolve_cell_heights(_height_image, grid, height_scale, base_height, sample_filter, heights)) {
+		return result;
+	}
+	PackedFloat32Array packed;
+	packed.resize((int64_t)heights.size());
+	memcpy(packed.ptrw(), heights.data(), heights.size() * sizeof(float));
+	result["columns"] = grid.cols;
+	result["rows"] = grid.rows;
+	result["cell_size"] = Vector2(grid.cw, grid.cd);
+	result["origin"] = Vector2(grid.ox, grid.oz);
+	result["heights"] = packed;
+	return result;
 }
 
 void ProcCityGenerator::generate_displacement() {

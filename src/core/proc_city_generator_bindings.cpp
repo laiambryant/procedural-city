@@ -88,6 +88,7 @@ void ProcCityGenerator::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("randomize_palette"), &ProcCityGenerator::randomize_palette);
 	ClassDB::bind_method(D_METHOD("clear_generated"), &ProcCityGenerator::clear_generated);
 	ClassDB::bind_method(D_METHOD("is_busy"), &ProcCityGenerator::is_busy);
+	ClassDB::bind_method(D_METHOD("get_cell_heights"), &ProcCityGenerator::get_cell_heights);
 
 	ClassDB::bind_method(D_METHOD("_thread_body", "job"), &ProcCityGenerator::_thread_body);
 	ClassDB::bind_method(D_METHOD("_apply_results", "result"), &ProcCityGenerator::_apply_results);
