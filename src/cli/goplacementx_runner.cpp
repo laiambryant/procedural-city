@@ -57,6 +57,8 @@ static void append_fast_flag(PackedStringArray &r_args, const Ref<GoplacementxPa
 	}
 }
 
+// The gradient only affects color emits; grayscale and normal emits ignore it,
+// so it is always safe to append.
 static void append_gradient_flag(PackedStringArray &r_args, const Ref<GoplacementxParams> &p_params) {
 	if (p_params.is_null()) {
 		return;
@@ -106,15 +108,26 @@ String GoplacementxRunner::write_config(const String &p_dir, const Ref<Goplaceme
 	return path;
 }
 
+// Bits the engine's 32-bit randi() is shifted up by so its entropy lands clear
+// of the low microsecond bits, and the shift that spreads the clock across the
+// high half of the 64-bit seed.
+static constexpr int SEED_RANDOM_SHIFT = 21;
+static constexpr int SEED_CLOCK_SHIFT = 32;
+
+// unpredictable_seed folds engine randomness into the microsecond clock,
+// shifting each source so its entropy lands in a distinct bit range. Neither
+// source alone is enough: the clock is guessable and randi() is only 32 bits.
+static int64_t unpredictable_seed() {
+	const uint64_t t = Time::get_singleton()->get_ticks_usec();
+	const uint64_t r = (uint64_t)(uint32_t)UtilityFunctions::randi();
+	return (int64_t)((r << SEED_RANDOM_SHIFT) ^ t ^ (t << SEED_CLOCK_SHIFT));
+}
+
 int64_t GoplacementxRunner::resolve_seed(const Ref<GoplacementxParams> &p_params) const {
 	if (p_params.is_valid() && !p_params->get_randomize_seed()) {
 		return p_params->get_seed();
 	}
-	// Fold engine randomness into the microsecond clock, shifting each source
-	// so its entropy lands in distinct bit ranges of the 64-bit seed.
-	const uint64_t t = Time::get_singleton()->get_ticks_usec();
-	const uint64_t r = (uint64_t)(uint32_t)UtilityFunctions::randi();
-	return (int64_t)((r << 21) ^ t ^ (t << 32));
+	return unpredictable_seed();
 }
 
 Dictionary GoplacementxRunner::run_generate(const String &p_binary, const String &p_config, const String &p_mode,
@@ -152,7 +165,6 @@ Dictionary GoplacementxRunner::run_bundle(const String &p_binary, const String &
 	append_size_flags(args, p_params);
 	append_invert_flag(args, p_params);
 	append_fast_flag(args, p_params);
-	// The gradient only affects color emits; grayscale/normal emits ignore it.
 	append_gradient_flag(args, p_params);
 
 	for (int i = 0; i < p_emits.size(); i++) {

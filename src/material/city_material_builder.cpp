@@ -48,15 +48,20 @@ static void apply_sampling_options(const Ref<BaseMaterial3D> &p_mat, const CityM
 	p_mat->set_flag(BaseMaterial3D::FLAG_USE_TEXTURE_REPEAT, p_spec.repeat);
 }
 
+// The meshers bake AO and per-cell tint into vertex colours; this multiplies
+// them into the albedo. Meshes without a COLOR array are unaffected, so it is
+// safe to enable for every backend.
+static void enable_baked_vertex_colours(const Ref<BaseMaterial3D> &p_mat) {
+	p_mat->set_flag(BaseMaterial3D::FLAG_ALBEDO_FROM_VERTEX_COLOR, true);
+}
+
 Ref<Material> godot::build_city_material(const CityMaterialSpec &p_spec) {
 	if (p_spec.albedo.is_null()) {
 		return Ref<Material>();
 	}
 	Ref<BaseMaterial3D> mat = instantiate_base_material(p_spec.orm);
 	mat->set_texture(BaseMaterial3D::TEXTURE_ALBEDO, ImageTexture::create_from_image(p_spec.albedo));
-	// The meshers bake AO and per-cell tint into vertex colours; multiply them
-	// into the albedo. Meshes without a COLOR array are unaffected.
-	mat->set_flag(BaseMaterial3D::FLAG_ALBEDO_FROM_VERTEX_COLOR, true);
+	enable_baked_vertex_colours(mat);
 	apply_normal_map(mat, p_spec.normal_map, p_spec.normal_strength);
 	apply_roughness(mat, p_spec.roughness_map, p_spec.roughness);
 	mat->set_metallic(p_spec.metallic);

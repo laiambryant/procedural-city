@@ -105,6 +105,48 @@ func _init() -> void:
 	check(city2 is MultiMeshInstance3D, "multimesh container installed")
 	check(city2.get_node_or_null("CollisionBody") != null, "multimesh collision generated")
 
+	# --- gridmap backend: heights quantized into stacked cells ---
+	gen.build_mode = ProcCityGenerator.BUILD_GRIDMAP
+	gen.build_geometry()
+	var gm: GridMap = gen.get_node_or_null("GeneratedCity")
+	check(gm != null, "gridmap container installed")
+	var cw := 20.0 / 32.0
+	check(gm.cell_size.is_equal_approx(Vector3(cw, cw, cw)), "auto level height gives cubic cells")
+	check(gm.position.is_equal_approx(Vector3(-10, 0, -10)), "gridmap aligned with the block grid")
+	var cells := gm.get_used_cells()
+	var ground := 0
+	var tallest := 0
+	for c in cells:
+		if c.y == 0:
+			ground += 1
+		tallest = maxi(tallest, c.y)
+	check(cells.size() > 1024, "columns stack into levels (%d cells)" % cells.size())
+	check(ground == 1024, "every column keeps a ground cell")
+	check(tallest <= int(round(4.0 / cw)) - 1, "no column stacks past height_scale")
+	var lib := gm.mesh_library
+	check(lib != null and lib.get_item_mesh(0) is BoxMesh, "generated mesh library holds a block")
+	check(lib.get_item_shapes(0).size() == 2, "collision shape baked into the library item")
+	check(gm.collision_layer == 1, "gridmap collision layer applied")
+
+	# --- gridmap: explicit level height + surface-only columns ---
+	gen.gridmap_level_height = 1.0
+	gen.gridmap_fill_columns = false
+	gen.build_geometry()
+	var gm2: GridMap = gen.get_node_or_null("GeneratedCity")
+	check(absf(gm2.cell_size.y - 1.0) < 0.001, "explicit level height honoured")
+	check(gm2.get_used_cells().size() == 1024, "surface mode places one cell per column")
+
+	# --- gridmap: user-supplied mesh library is used as-is ---
+	var custom := MeshLibrary.new()
+	custom.create_item(7)
+	custom.set_item_mesh(7, BoxMesh.new())
+	gen.gridmap_mesh_library = custom
+	gen.gridmap_item_id = 7
+	gen.build_geometry()
+	var gm3: GridMap = gen.get_node_or_null("GeneratedCity")
+	check(gm3.mesh_library == custom, "user mesh library installed unmodified")
+	check(gm3.get_cell_item(gm3.get_used_cells()[0]) == 7, "cells reference the requested item")
+
 	# --- perf probe: large grid ---
 	var big := Vector2i(129, 129) # 16384 cells
 	var p0 := Time.get_ticks_usec()
