@@ -107,6 +107,25 @@ func _main() -> void:
 	root.get_viewport().get_texture().get_image().save_png(shot)
 	print("visual_check: wrote ", shot)
 
+	gen.build_mode = ProcCityGenerator.BUILD_GRIDMAP
+	gen.generate_all()
+	await gen.all_finished
+	if _failed:
+		quit(1)
+		return
+	await process_frame
+	await process_frame
+	shot = _out_dir().path_join("gridmap.png")
+	root.get_viewport().get_texture().get_image().save_png(shot)
+	print("visual_check: wrote ", shot)
+	# A GridMap takes no material override: the material has to reach the block
+	# mesh inside the generated MeshLibrary, or the city renders untextured.
+	var gm: GridMap = gen.get_node_or_null("GeneratedCity")
+	if gm == null or gm.mesh_library.get_item_mesh(0).material == null:
+		push_error("visual_check: gridmap material did not reach the mesh library")
+		quit(1)
+		return
+
 	var gpu_runner := GoplacementxRunner.new()
 	gpu_runner.cli_kind = GoplacementxRunner.CLI_GPUDISPLACEMENTX
 	var gpu_found := gpu_runner.find_binary("")

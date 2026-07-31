@@ -50,6 +50,18 @@ Pure functions and a `RefCounted` façade (`HeightmapMesher`) with four
 backends: ArrayMesh blocks (`block_mesher.cpp`), hex-prism honeycomb
 (`hex_hive_mesher.cpp`), MultiMesh and CSG (`heightmap_mesher.cpp`).
 
+`gridmap_plan.cpp` is the fifth backend and the odd one out: it emits no
+geometry at all, only a `GridMapPlan` (cell size, origin, occupied cell
+coordinates) quantized from the same sampled heights. `core/` turns that plan
+into the `GridMap` node and its `MeshLibrary`, keeping this module free of
+scene-tree access like the rest.
+
+Each backend's internals live in a header beside it — `block_layout.h` (cell
+footprints, visible walls, per-row prefix sums), `block_style.h` (the baked
+vertex colours) and `hex_lattice.h` (warped centres, column heights, corners).
+Header-only on purpose: this is per-cell code, and an out-of-line call would
+cost more than the maths it wraps.
+
 Shared infrastructure:
 
 - `height_sampling` — `HeightImageView` (zero-copy red-channel view of a

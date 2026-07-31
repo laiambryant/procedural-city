@@ -10,8 +10,8 @@ from GitHub and caches it under `user://`.
 
 It exposes the full godisplacementx parameter set inside the Godot inspector,
 plus a selectable geometry backend (**ArrayMesh** / **MultiMesh** / **CSG
-boxes** / **HexHive**) and baked styling (vertex-colour ambient occlusion and
-per-cell tint variation). Block tops are single flat faces.
+boxes** / **HexHive** / **GridMap**) and baked styling (vertex-colour ambient
+occlusion and per-cell tint variation). Block tops are single flat faces.
 
 ---
 
@@ -21,7 +21,7 @@ per-cell tint variation). Block tops are single flat faces.
 src/
   register_types.cpp      GDExtension entry point
   core/                   ProcCityGenerator node, pipeline, worker threading
-  meshing/                image → geometry backends (blocks, hex, multimesh, CSG)
+  meshing/                image → geometry backends (blocks, hex, multimesh, CSG, gridmap)
   cli/                    goplacementx params/runner, binary download, GPU server
   material/               material assembly from the CLI-generated maps
   hive/                   standalone HiveGenCore floor planner
@@ -48,6 +48,10 @@ guide: [CONTRIBUTING.md](CONTRIBUTING.md)
 | `GoplacementxParams` | `Resource` | The full goplacementx parameter set; serializes to the CLI config JSON |
 | `GoplacementxRunner` | `RefCounted` | Locates the binary, writes the config, runs the CLI (thread-safe) |
 | `HeightmapMesher` | `RefCounted` | Image → ArrayMesh / MultiMesh / CSG boxes |
+
+The GridMap backend is not part of `HeightmapMesher`: it plans voxel cells
+(`meshing/gridmap_plan.cpp`) that `ProcCityGenerator` turns into a `GridMap`
+node plus its `MeshLibrary`.
 
 ---
 
@@ -126,9 +130,16 @@ Those folders are intentionally untracked.
      with **Block Inset** (> 0 shrinks every block footprint, producing
      freestanding buildings over an automatic ground plane).
    - Enable **Generate Collision** for a `StaticBody3D` + trimesh shape under
-     the generated geometry (CSG mode uses its built-in `use_collision`).
+     the generated geometry (CSG mode uses its built-in `use_collision`,
+     GridMap mode collides through its own MeshLibrary shapes).
    - Pick **Build Mode**: `ArrayMesh` (default; continuous material, fast),
-     `MultiMesh` (GPU-instanced), or `CSG` (literal `CSGBox3D`s, capped).
+     `MultiMesh` (GPU-instanced), `CSG` (literal `CSGBox3D`s, capped),
+     `HexHive`, or `GridMap` (a real `GridMap` node you can keep editing by
+     hand after generation).
+   - In GridMap mode, set **GridMap Level Height** (0 = auto: cells as close to
+     cubic as the footprint allows), **GridMap Fill Columns** (off places only
+     each column's top cell) and optionally a **GridMap Mesh Library** +
+     **GridMap Item Id** to stamp your own props instead of plain blocks.
    - Expand **Params** to tune every goplacementx layer (rect/grid/cols/rows/
      lines/sprites), composition modes, gradient, resolution, seed, etc.
 3. Click the action buttons:
@@ -278,7 +289,8 @@ The generation pipeline is built for large grids and large maps:
   red-channel buffer once.
 
 `demo/tests/bench_meshers.gd` times the mesher backends headless;
-`demo/tests/multimesh_parity.gd` pins the multimesh buffer layout.
+`demo/tests/multimesh_parity.gd` pins the multimesh buffer layout;
+`demo/tests/hive_parity.gd` pins `HiveGenCore`'s RNG stream by digest.
 
 ## Geometry notes
 
@@ -291,7 +303,23 @@ The generation pipeline is built for large grids and large maps:
   ground plane, and shrinks the box footprints in the other backends.
 - `generate_collision` adds `GeneratedCity/CollisionBody` (a `StaticBody3D`
   with a `ConcavePolygonShape3D` built from the block geometry). CSG mode
-  enables the combiner's own `use_collision` instead.
+  enables the combiner's own `use_collision` instead; GridMap mode bakes a
+  `BoxShape3D` into the generated MeshLibrary item and sets the node's
+  collision layer, since a GridMap is its own collider.
+- **GridMap** quantizes each column's height into stacked cells instead of
+  extruding a mesh: `gridmap_level_height` sets the vertical cell size (0
+  derives one from the footprint so cells come out roughly cubic), rounded to
+  the nearest whole number of levels with a floor of one so the ground layer
+  never develops holes. `gridmap_fill_columns` off places only the top cell of
+  each column (a hollow surface, one cell per column). `block_inset` shrinks
+  the block inside its cell, so streets still work. The node is a plain
+  `GridMap` on its default `cell_center_*` flags, positioned at the grid's
+  north-west corner with level 0 on `y = 0` — hand-edit it afterwards like any
+  other GridMap. A GridMap takes no material override, so the material is
+  applied to the block mesh in the generated MeshLibrary; supply your own
+  `gridmap_mesh_library` (plus `gridmap_item_id`) and it is used untouched,
+  materials and shapes included. Plans over 65 536 cells warn, and over
+  1 048 576 fail with the knobs to turn.
 - **ArrayMesh** is the only backend that drapes the albedo/normal as a single
   continuous image over the whole surface (side walls between cells of differing
   height are generated; shared interior walls are skipped). MultiMesh and CSG

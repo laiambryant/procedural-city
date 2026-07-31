@@ -3,6 +3,7 @@
 
 #include <godot_cpp/classes/image.hpp>
 #include <godot_cpp/classes/material.hpp>
+#include <godot_cpp/classes/mesh_library.hpp>
 #include <godot_cpp/classes/node3d.hpp>
 #include <godot_cpp/classes/thread.hpp>
 #include <godot_cpp/core/binder_common.hpp>
@@ -12,16 +13,23 @@
 #include <godot_cpp/variant/string.hpp>
 #include <godot_cpp/variant/vector2.hpp>
 #include <godot_cpp/variant/vector2i.hpp>
+#include <godot_cpp/variant/vector3.hpp>
 
 #include "cli/goplacementx_params.h"
 
 namespace godot {
 
+class GridMap;
 class MeshInstance3D;
+struct CityMaterialSpec;
+
+// Name of the single child ProcCityGenerator installs its output under. Part of
+// the node's contract: scripts and tests reach the city by this name.
+inline constexpr const char *GENERATED_NAME = "GeneratedCity";
 
 // ProcCityGenerator drives the goplacementx CLI to produce a displacement map,
-// builds extruded block geometry from it (ArrayMesh / MultiMesh / CSG), and
-// applies a CLI-generated albedo + normal material to the result.
+// builds extruded block geometry from it (ArrayMesh / MultiMesh / CSG /
+// GridMap), and applies a CLI-generated albedo + normal material to the result.
 class ProcCityGenerator : public Node3D {
 	GDCLASS(ProcCityGenerator, Node3D)
 
@@ -35,6 +43,7 @@ public:
 		BUILD_MULTIMESH = 1,
 		BUILD_CSG = 2,
 		BUILD_HEX = 3,
+		BUILD_GRIDMAP = 4,
 	};
 	enum MaterialMode {
 		MATERIAL_STANDARD = 0,
@@ -47,6 +56,11 @@ public:
 		TEX_SINGLE = 0,	  // one colour map -> Albedo; scalar roughness/metallic
 		TEX_SHARED = 1,	  // one map -> Albedo (colour) + Roughness + Height
 		TEX_CHANNELS = 2, // five maps -> R, G, B, Roughness, Height
+	};
+	// Sampling of the generated maps on the finished material.
+	enum TextureFilter {
+		TEXTURE_FILTER_NEAREST = 0,
+		TEXTURE_FILTER_LINEAR = 1,
 	};
 
 private:
@@ -85,6 +99,16 @@ private:
 	double hive_rim_boost = 0.0;
 	double hive_rim_falloff = 24.0;
 	bool hive_floor = true;
+	// GridMap backend (BUILD_GRIDMAP): block heights quantize into stacked
+	// cells. A zero level height picks one automatically (cells as close to
+	// cubic as the footprint allows). With fill_columns off only each column's
+	// top cell is placed. Supplying a mesh library replaces the generated block
+	// item with gridmap_item_id out of that library, which keeps its own item
+	// sizes, shapes and materials.
+	double gridmap_level_height = 0.0;
+	bool gridmap_fill_columns = true;
+	Ref<MeshLibrary> gridmap_mesh_library;
+	int gridmap_item_id = 0;
 	// Baked look: vertex-colour AO strength and per-cell luminance variation.
 	// Zero disables each effect. Block tops stay single flat quads.
 	double ao_strength = 0.7;
@@ -117,6 +141,10 @@ private:
 	Ref<Image> _b_image;
 	Ref<Image> _rough_image;
 	Ref<Material> _material;
+	// The MeshLibrary the GridMap backend generated for the installed city, if
+	// any. Held so the material stage can retint its block mesh; a
+	// user-supplied library is never mutated, so it is not tracked here.
+	Ref<MeshLibrary> _generated_library;
 	String _last_height_path;
 	String _last_albedo_path;
 	String _last_normal_path;
@@ -140,30 +168,41 @@ private:
 	Node3D *_make_csg_node();
 	Node3D *_make_hex_node();
 	Node3D *_make_blocks_node();
+	Node3D *_make_gridmap_node();
+	bool _resolve_gridmap_library(const Vector3 &p_cell_size, Ref<MeshLibrary> &r_library, int &r_item);
 	// Swaps p_container in as the GeneratedCity child (removes the old one,
 	// handles editor ownership and the material override). Main thread only.
 	void _install_geometry(Node3D *p_container);
+	void _forget_generated_library(Node3D *p_container);
+	void _reparent_into_edited_scene(Node3D *p_container);
 	void _attach_collision(Node3D *p_container);
 	void _attach_trimesh_body(MeshInstance3D *p_mesh_instance);
 	void _attach_multimesh_body(Node3D *p_container);
 
+	CityMaterialSpec _material_spec();
 	void _apply_material_main();
 	Ref<Image> _resolve_albedo_image();
 	Ref<Image> _resolve_roughness_image() const;
 	void _apply_material_to_generated();
+	void _retint_generated_library(GridMap *p_gridmap);
 
 	void _start_pipeline(int p_stages, bool p_fresh_seed);
+	static String _pipeline_label(int p_stages);
 	Dictionary _snapshot_job(int p_stages) const;
 	void _thread_body(Dictionary p_job);
 	void _apply_results(Dictionary p_result);
 	void _store_result_images(const Dictionary &p_result);
 	bool _apply_result_geometry(const Dictionary &p_result);
+	void _join_worker();
 	void _finish_worker();
 	void _emit_failed(String p_stage, String p_message);
 	void _cleanup_temp(const Dictionary &p_result);
 
 protected:
 	static void _bind_methods();
+	// Split out of _bind_methods: the editor-facing half (property groups,
+	// action buttons, signals, enum constants) lives in proc_city_inspector.cpp.
+	static void _bind_inspector_surface();
 	void _notification(int p_what);
 
 public:
@@ -204,6 +243,14 @@ public:
 	double get_hive_rim_falloff() const { return hive_rim_falloff; }
 	void set_hive_floor(bool p_v) { hive_floor = p_v; }
 	bool get_hive_floor() const { return hive_floor; }
+	void set_gridmap_level_height(double p_v) { gridmap_level_height = p_v; }
+	double get_gridmap_level_height() const { return gridmap_level_height; }
+	void set_gridmap_fill_columns(bool p_v) { gridmap_fill_columns = p_v; }
+	bool get_gridmap_fill_columns() const { return gridmap_fill_columns; }
+	void set_gridmap_mesh_library(const Ref<MeshLibrary> &p_v) { gridmap_mesh_library = p_v; }
+	Ref<MeshLibrary> get_gridmap_mesh_library() const { return gridmap_mesh_library; }
+	void set_gridmap_item_id(int p_v) { gridmap_item_id = p_v; }
+	int get_gridmap_item_id() const { return gridmap_item_id; }
 	void set_ao_strength(double p_v) { ao_strength = p_v; }
 	double get_ao_strength() const { return ao_strength; }
 	void set_color_variation(double p_v) { color_variation = p_v; }
@@ -274,5 +321,6 @@ VARIANT_ENUM_CAST(godot::ProcCityGenerator::GenerationMode);
 VARIANT_ENUM_CAST(godot::ProcCityGenerator::BuildMode);
 VARIANT_ENUM_CAST(godot::ProcCityGenerator::MaterialMode);
 VARIANT_ENUM_CAST(godot::ProcCityGenerator::TextureMode);
+VARIANT_ENUM_CAST(godot::ProcCityGenerator::TextureFilter);
 
 #endif // PROC_CITY_GENERATOR_H
