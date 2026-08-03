@@ -1,0 +1,141 @@
+syntax = "proto3";
+
+package displacement.v1;
+
+option go_package = "godisplacementx/internal/rpc/displacementpb";
+
+// Canonical contract shared by godisplacementx (CPU) and gpudisplacementx
+// (GPU). Both expose the same Displacement service over gRPC on a loopback
+// TCP port chosen by the OS; the process prints one line to stdout at
+// startup - {"grpc_port":N} - so the parent (procedural-city) never needs a
+// filesystem handshake or a fixed port. This file is the source of truth;
+// godisplacementx/proto and gpudisplacementx/proto carry byte-identical
+// copies regenerated from here.
+
+// Dual mirrors the [min,max] pair used by every ranged setting.
+message Dual {
+  int64 min = 1;
+  int64 max = 2;
+}
+
+// Params is the full generator config, replacing the JSON file written to
+// disk today. Field names/order/semantics match godisplacementx's
+// internal/gen.Params (camelCase JSON tags) and gpudisplacementx's
+// engine::params::Params byte-for-byte - renaming or renumbering a field here
+// is a breaking change for both servers.
+message Params {
+  int64 iterations = 1;
+  int64 background_brightness = 2;
+
+  bool rect_enabled = 3;
+  Dual rect_brightness = 4;
+  Dual rect_alpha = 5;
+  int64 rect_scale = 6;
+
+  bool grid_enabled = 7;
+  Dual grid_brightness = 8;
+  Dual grid_alpha = 9;
+  int64 grid_scale = 10;
+  Dual grid_amount = 11;
+  int64 grid_gap = 12;
+
+  bool cols_enabled = 13;
+  Dual cols_brightness = 14;
+  Dual cols_alpha = 15;
+  int64 cols_scale = 16;
+  Dual cols_amount = 17;
+  int64 cols_gap = 18;
+
+  bool rows_enabled = 19;
+  Dual rows_brightness = 20;
+  Dual rows_alpha = 21;
+  int64 rows_scale = 22;
+  Dual rows_amount = 23;
+  int64 rows_gap = 24;
+
+  bool lines_enabled = 25;
+  Dual lines_brightness = 26;
+  Dual lines_alpha = 27;
+  Dual lines_width = 28;
+
+  bool sprites_enabled = 29;
+  repeated string sprites_packs = 30;
+  bool sprites_rotation_enabled = 31;
+  bool seamless_texture_enabled = 32;
+  repeated string composition_modes = 33;
+}
+
+// RenderOptions are the per-call flags that never lived in the config JSON
+// (they were CLI flags: --width/--height/--resolution, --invert, --fast,
+// --gradient).
+message RenderOptions {
+  uint32 width = 1;
+  uint32 height = 2;
+  uint32 resolution = 3; // used only if width/height are both 0
+  bool invert = 4;
+  bool fast = 5;
+  string gradient = 6; // "#rrggbb,#rrggbb,..." - empty means the CLI default
+}
+
+// Emit describes one map to render inside a Bundle call. id is a caller-chosen
+// correlation key (NOT a filesystem path) echoed back on every MapChunk that
+// belongs to this emit, mirroring the CLI's --emit mode:seed:path but with
+// path replaced by an opaque key since nothing touches disk anymore.
+message Emit {
+  string id = 1;
+  string mode = 2; // "grayscale" | "color" | "normal"
+  uint64 seed = 3;
+}
+
+message GenerateRequest {
+  Params params = 1;
+  RenderOptions options = 2;
+  string mode = 3;
+  uint64 seed = 4;
+}
+
+message GenerateReply {
+  bytes gdxraw = 1; // the .gdxraw-framed map, in memory
+}
+
+message BundleRequest {
+  Params params = 1;
+  RenderOptions options = 2;
+  repeated Emit emits = 3;
+}
+
+// MapChunk streams one emit's bytes back in pieces so a single 8192^2 map
+// (up to ~256 MiB) never has to round-trip as one oversized protobuf message.
+// Consecutive chunks share id until last=true; a map with zero bytes is still
+// terminated by exactly one chunk with last=true.
+message MapChunk {
+  string id = 1;
+  bytes data = 2;
+  bool last = 3;
+}
+
+message RandomizeRequest {
+  uint64 seed = 1;
+}
+
+message RandomizeReply {
+  Params params = 1;
+}
+
+message VersionRequest {}
+
+message VersionReply {
+  string version = 1;
+}
+
+service Displacement {
+  // Unary: single map, mirrors the `generate` subcommand.
+  rpc Generate(GenerateRequest) returns (GenerateReply);
+  // Server-streaming: N maps from one shared generation pass, mirrors the
+  // `bundle` subcommand. Chunked per-map so large maps stream incrementally.
+  rpc Bundle(BundleRequest) returns (stream MapChunk);
+  // Unary: mirrors the `randomize` subcommand.
+  rpc Randomize(RandomizeRequest) returns (RandomizeReply);
+  // Unary: mirrors the `version` subcommand; also doubles as a liveness probe.
+  rpc Version(VersionRequest) returns (VersionReply);
+}

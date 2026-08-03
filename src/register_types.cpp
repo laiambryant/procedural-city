@@ -10,6 +10,7 @@
 #include "cli/goplacementx_params.h"
 #include "cli/goplacementx_runner.h"
 #include "cli/gpu_server.h"
+#include "cli/rpc_client.h"
 #include "core/proc_city_generator.h"
 #include "hive/hive_gen_core.h"
 #include "meshing/heightmap_mesher.h"
@@ -38,6 +39,7 @@ void uninitialize_procedural_city_module(ModuleInitializationLevel p_level) {
 		Engine::get_singleton()->unregister_singleton("ProcCityGpuServer");
 		memdelete(server);
 	}
+	proc_city_rpc_clients_shutdown();
 }
 
 extern "C" {

@@ -3,6 +3,7 @@
 #include "cli/gdxraw_loader.h"
 #include "cli/goplacementx_runner.h"
 #include "cli/gpu_server.h"
+#include "cli/rpc_client.h"
 #include "core/proc_city_job.h"
 
 #include <godot_cpp/variant/utility_functions.hpp>
@@ -70,6 +71,30 @@ static Array plan_emits_for_cli(const Ref<GoplacementxRunner> &p_runner, const D
 							 p_job["texture_mode"], ext, r_result);
 }
 
+static CliKind to_binary_provider_kind(int p_generation_mode) {
+	return p_generation_mode == ProcCityGenerator::GEN_GPU ? CliKind::GPUDISPLACEMENTX : CliKind::GODISPLACEMENTX;
+}
+
+// try_grpc_bundle is the first thing every generation attempts: params travel
+// in the request message and maps come back over one persistent channel, so
+// nothing is ever written to or read from disk and the CLI's startup cost
+// (process spawn, or the GPU's ~600ms device bring-up) is paid once per
+// session instead of once per generation. Returns an empty Dictionary - never
+// one with a "code" key - when gRPC isn't available for this binary, so the
+// caller knows to fall back to writing the config file.
+static Dictionary try_grpc_bundle(const String &p_binary, int p_used_mode, const Array &p_emits, const Ref<GoplacementxParams> &p_params) {
+	ProcCityRpcClient *rpc = proc_city_rpc_client_for(to_binary_provider_kind(p_used_mode));
+	if (!rpc->ensure_started(p_binary)) {
+		return Dictionary();
+	}
+	const Dictionary served = rpc->run_bundle(p_emits, p_params);
+	if ((int)served.get("code", 1) == 0) {
+		return served;
+	}
+	UtilityFunctions::push_warning("[ProcCity] " + String(cli_display_name(p_used_mode)) + " gRPC request failed (" + String(served.get("output", "")) + ") - retrying without gRPC.");
+	return Dictionary();
+}
+
 // cli_failure_message prefers whatever the CLI printed, falling back to the
 // exit code when it died without saying anything.
 static String cli_failure_message(const Dictionary &p_run, int p_used_mode) {
@@ -95,23 +120,26 @@ void ProcCityGenerator::_thread_body(Dictionary p_job) {
 		return;
 	}
 
-	const String config = runner->write_config(dir, p);
-	if (config.is_empty()) {
-		call_deferred("_emit_failed", "setup", "Could not write config JSON into " + dir);
-		return;
-	}
-
 	Dictionary result;
 	result["stages"] = stages;
 	result["seed"] = p_job["seed"];
 	result["texture_mode"] = p_job["texture_mode"];
 	result["dir"] = dir;
-	result["config_path"] = config;
 
 	Array emits = plan_emits_for_cli(runner, p_job, dir, stages & STAGE_HEIGHT, stages & STAGE_MATERIAL, result);
 
-	const bool use_server = (bool)p_job.get("use_gpu_server", false) && !(bool)p_job.get("keep_intermediate_png", false);
-	Dictionary run = run_generation_bundle(runner, binary, config, emits, p, used_mode, use_server);
+	String config;
+	Dictionary run = try_grpc_bundle(binary, used_mode, emits, p);
+	if (run.is_empty()) {
+		config = runner->write_config(dir, p);
+		if (config.is_empty()) {
+			call_deferred("_emit_failed", "setup", "Could not write config JSON into " + dir);
+			return;
+		}
+		result["config_path"] = config;
+		const bool use_server = (bool)p_job.get("use_gpu_server", false) && !(bool)p_job.get("keep_intermediate_png", false);
+		run = run_generation_bundle(runner, binary, config, emits, p, used_mode, use_server);
+	}
 	if (used_mode == GEN_GPU && (int)run["code"] == GPU_NO_ADAPTER_EXIT) {
 		UtilityFunctions::push_warning("[ProcCity] gpudisplacementx reported no usable GPU adapter (exit 2) - falling back to the CPU pipeline.");
 		runner->set_cli_kind(GoplacementxRunner::CLI_GODISPLACEMENTX);
@@ -122,7 +150,18 @@ void ProcCityGenerator::_thread_body(Dictionary p_job) {
 		}
 		used_mode = GEN_CPU;
 		emits = plan_emits_for_cli(runner, p_job, dir, stages & STAGE_HEIGHT, stages & STAGE_MATERIAL, result);
-		run = runner->run_bundle(binary, config, emits, p);
+		run = try_grpc_bundle(binary, used_mode, emits, p);
+		if (run.is_empty()) {
+			if (config.is_empty()) {
+				config = runner->write_config(dir, p);
+				if (config.is_empty()) {
+					call_deferred("_emit_failed", "setup", "Could not write config JSON into " + dir);
+					return;
+				}
+				result["config_path"] = config;
+			}
+			run = runner->run_bundle(binary, config, emits, p);
+		}
 	}
 	if ((int)run["code"] != 0) {
 		call_deferred("_emit_failed", (stages & STAGE_MATERIAL) ? "material" : "displacement", cli_failure_message(run, used_mode));

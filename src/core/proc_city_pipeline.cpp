@@ -1,8 +1,6 @@
 #include "core/proc_city_generator.h"
 
 #include "cli/goplacementx_runner.h"
-#include "cli/gpu_server.h"
-#include "core/proc_city_job.h"
 
 #include <godot_cpp/classes/dir_access.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
