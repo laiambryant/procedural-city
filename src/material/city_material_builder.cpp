@@ -1,5 +1,7 @@
 #include "material/city_material_builder.h"
 
+#include "meshing/parallel_rows.h"
+
 #include <godot_cpp/classes/image_texture.hpp>
 #include <godot_cpp/classes/orm_material3d.hpp>
 #include <godot_cpp/classes/standard_material3d.hpp>
@@ -44,7 +46,13 @@ static void apply_roughness(const Ref<BaseMaterial3D> &p_mat, const Ref<Image> &
 
 static void apply_sampling_options(const Ref<BaseMaterial3D> &p_mat, const CityMaterialSpec &p_spec) {
 	p_mat->set_uv1_scale(Vector3(p_spec.uv_scale.x, p_spec.uv_scale.y, 1.0));
-	p_mat->set_texture_filter(p_spec.filter_nearest ? BaseMaterial3D::TEXTURE_FILTER_NEAREST : BaseMaterial3D::TEXTURE_FILTER_LINEAR);
+	BaseMaterial3D::TextureFilter filter = BaseMaterial3D::TEXTURE_FILTER_LINEAR;
+	if (p_spec.texture_filter == 0) {
+		filter = BaseMaterial3D::TEXTURE_FILTER_NEAREST;
+	} else if (p_spec.texture_filter == 2) {
+		filter = BaseMaterial3D::TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC;
+	}
+	p_mat->set_texture_filter(filter);
 	p_mat->set_flag(BaseMaterial3D::FLAG_USE_TEXTURE_REPEAT, p_spec.repeat);
 }
 
@@ -69,13 +77,28 @@ Ref<Material> godot::build_city_material(const CityMaterialSpec &p_spec) {
 	return mat;
 }
 
+void godot::prepare_material_image(const Ref<Image> &p_image, int p_max_size, bool p_mipmaps, bool p_normal_map) {
+	if (!has_pixels(p_image)) {
+		return;
+	}
+	const int width = p_image->get_width();
+	const int height = p_image->get_height();
+	const int longest = MAX(width, height);
+	if (p_max_size > 0 && longest > p_max_size) {
+		const double scale = (double)p_max_size / (double)longest;
+		const int resized_width = MAX(1, (int)Math::round((double)width * scale));
+		const int resized_height = MAX(1, (int)Math::round((double)height * scale));
+		p_image->resize(resized_width, resized_height, Image::INTERPOLATE_BILINEAR);
+	}
+	if (p_mipmaps && !p_image->has_mipmaps()) {
+		p_image->generate_mipmaps(p_normal_map);
+	}
+}
+
 Ref<Image> godot::compose_rgb_albedo(const Ref<Image> &p_r, const Ref<Image> &p_g, const Ref<Image> &p_b) {
 	if (p_r.is_null() || p_g.is_null() || p_b.is_null()) {
 		return Ref<Image>();
 	}
-	p_r->convert(Image::FORMAT_RGBA8);
-	p_g->convert(Image::FORMAT_RGBA8);
-	p_b->convert(Image::FORMAT_RGBA8);
 
 	const int w = p_r->get_width();
 	const int h = p_r->get_height();
@@ -86,21 +109,50 @@ Ref<Image> godot::compose_rgb_albedo(const Ref<Image> &p_r, const Ref<Image> &p_
 		return Ref<Image>();
 	}
 
-	const PackedByteArray rd = p_r->get_data();
-	const PackedByteArray gd = p_g->get_data();
-	const PackedByteArray bd = p_b->get_data();
-	const uint8_t *rp = rd.ptr();
-	const uint8_t *gp = gd.ptr();
-	const uint8_t *bp = bd.ptr();
+	struct RedChannel {
+		Ref<Image> image;
+		PackedByteArray data;
+		int stride = 0;
+	};
+	auto channel = [](const Ref<Image> &p_source) {
+		RedChannel out;
+		out.image = p_source;
+		switch (out.image->get_format()) {
+			case Image::FORMAT_L8:
+			case Image::FORMAT_R8: out.stride = 1; break;
+			case Image::FORMAT_LA8:
+			case Image::FORMAT_RG8: out.stride = 2; break;
+			case Image::FORMAT_RGB8: out.stride = 3; break;
+			case Image::FORMAT_RGBA8: out.stride = 4; break;
+			default:
+				out.image = p_source->duplicate();
+				out.image->convert(Image::FORMAT_RGBA8);
+				out.stride = 4;
+				break;
+		}
+		out.data = out.image->get_data();
+		return out;
+	};
+
+	const RedChannel rd = channel(p_r);
+	const RedChannel gd = channel(p_g);
+	const RedChannel bd = channel(p_b);
+	const uint8_t *rp = rd.data.ptr();
+	const uint8_t *gp = gd.data.ptr();
+	const uint8_t *bp = bd.data.ptr();
 
 	const int64_t n = (int64_t)w * (int64_t)h;
 	PackedByteArray out;
 	out.resize(n * 3);
 	uint8_t *op = out.ptrw();
-	for (int64_t i = 0; i < n; i++) {
-		op[i * 3 + 0] = rp[i * 4];
-		op[i * 3 + 1] = gp[i * 4];
-		op[i * 3 + 2] = bp[i * 4];
-	}
+	parallel_for_rows(h, [&](int p_begin, int p_end) {
+		const int64_t begin = (int64_t)p_begin * (int64_t)w;
+		const int64_t end = (int64_t)p_end * (int64_t)w;
+		for (int64_t i = begin; i < end; i++) {
+			op[i * 3 + 0] = rp[i * rd.stride];
+			op[i * 3 + 1] = gp[i * gd.stride];
+			op[i * 3 + 2] = bp[i * bd.stride];
+		}
+	});
 	return Image::create_from_data(w, h, false, Image::FORMAT_RGB8, out);
 }

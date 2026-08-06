@@ -21,6 +21,7 @@ void ProcCityGenerator::_bind_inspector_surface() {
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "base_height", PROPERTY_HINT_RANGE, "0,100,0.01"), "set_base_height", "get_base_height");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "height_power", PROPERTY_HINT_RANGE, "0.1,8,0.01"), "set_height_power", "get_height_power");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "block_inset", PROPERTY_HINT_RANGE, "0,0.45,0.01"), "set_block_inset", "get_block_inset");
+	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "clip_below_height", PROPERTY_HINT_RANGE, "0,100,0.01,suffix:m"), "set_clip_below_height", "get_clip_below_height");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "build_mode", PROPERTY_HINT_ENUM, "ArrayMesh,MultiMesh,CSG,HexHive,GridMap"), "set_build_mode", "get_build_mode");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "sample_filter", PROPERTY_HINT_ENUM, "Nearest,BoxAverage"), "set_sample_filter", "get_sample_filter");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "max_cells", PROPERTY_HINT_RANGE, "1,1048576,1"), "set_max_cells", "get_max_cells");
@@ -56,7 +57,8 @@ void ProcCityGenerator::_bind_inspector_surface() {
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "roughness", PROPERTY_HINT_RANGE, "0,1,0.01"), "set_roughness", "get_roughness");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "metallic", PROPERTY_HINT_RANGE, "0,1,0.01"), "set_metallic", "get_metallic");
 	ADD_PROPERTY(PropertyInfo(Variant::VECTOR2, "uv_scale"), "set_uv_scale", "get_uv_scale");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "texture_filter", PROPERTY_HINT_ENUM, "Nearest,Linear"), "set_texture_filter", "get_texture_filter");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "texture_filter", PROPERTY_HINT_ENUM, "Nearest,Linear,Linear Mipmap Anisotropic"), "set_texture_filter", "get_texture_filter");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "material_max_size", PROPERTY_HINT_RANGE, "0,16384,1,or_greater,suffix:px"), "set_material_max_size", "get_material_max_size");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "texture_repeat"), "set_texture_repeat", "get_texture_repeat");
 
 	ADD_GROUP("Tool", "");
@@ -92,6 +94,7 @@ void ProcCityGenerator::_bind_inspector_surface() {
 	BIND_ENUM_CONSTANT(TEX_CHANNELS);
 	BIND_ENUM_CONSTANT(TEXTURE_FILTER_NEAREST);
 	BIND_ENUM_CONSTANT(TEXTURE_FILTER_LINEAR);
+	BIND_ENUM_CONSTANT(TEXTURE_FILTER_LINEAR_MIPMAP_ANISOTROPIC);
 }
 
 Callable ProcCityGenerator::_btn_generate_displacement() const {

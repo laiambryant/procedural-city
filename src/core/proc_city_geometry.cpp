@@ -34,6 +34,9 @@ bool ProcCityGenerator::_build_geometry_main() {
 		_emit_failed("geometry", budget_error);
 		return false;
 	}
+	// A synchronous rebuild is also the explicit refresh boundary for callers
+	// that mutate an Image in place before invoking build_geometry().
+	_cell_heights_cache.clear();
 
 	Node3D *container = _make_geometry_container();
 	if (container == nullptr) {
@@ -102,17 +105,21 @@ Node3D *ProcCityGenerator::_make_hex_node() {
 Node3D *ProcCityGenerator::_make_blocks_node() {
 	Ref<HeightmapMesher> mesher;
 	mesher.instantiate();
-	Ref<ArrayMesh> mesh = mesher->build_array_mesh(_height_image, mesh_size, grid_vertices, height_scale, base_height, sample_filter,
-												   height_power, block_inset, _resolved_seed, ao_strength, color_variation);
+	std::vector<float> heights;
+	Ref<ArrayMesh> mesh = mesher->build_array_mesh_with_heights(
+			_height_image, mesh_size, grid_vertices, height_scale, base_height, sample_filter,
+			height_power, block_inset, _resolved_seed, ao_strength, color_variation,
+			clip_below_height, heights);
 	if (mesh.is_null()) {
 		_emit_failed("geometry", "ArrayMesh build failed.");
 		return nullptr;
 	}
+	_cache_cell_heights(heights);
 	return wrap_mesh_in_instance(mesh);
 }
 
 bool ProcCityGenerator::_apply_result_geometry(const Dictionary &p_result) {
-	if (p_result.has("geometry_mesh")) {
+	if (p_result.has("geometry_mesh") && _result_matches_height_inputs(p_result)) {
 		Ref<ArrayMesh> mesh = p_result["geometry_mesh"];
 		_install_geometry(wrap_mesh_in_instance(mesh));
 		return true;

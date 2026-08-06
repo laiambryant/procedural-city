@@ -43,7 +43,8 @@ public:
 	static ProcCityGpuServer *get_singleton() { return singleton; }
 
 	bool ensure_started(const String &p_binary);
-	Dictionary run_bundle(const String &p_config, const Array &p_emits, const Ref<GoplacementxParams> &p_params);
+	Dictionary run_bundle(const String &p_config, const Array &p_emits, const Ref<GoplacementxParams> &p_params,
+			int p_material_max_size, bool p_mipmaps);
 	bool is_running() const;
 	void shutdown();
 

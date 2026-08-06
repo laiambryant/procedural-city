@@ -11,6 +11,8 @@
 #include <godot_cpp/variant/vector2.hpp>
 #include <godot_cpp/variant/vector2i.hpp>
 
+#include <vector>
+
 namespace godot {
 
 // Largest allowed block inset (fraction of a cell per side). Past this the
@@ -50,7 +52,15 @@ public:
 	Ref<ArrayMesh> build_array_mesh(const Ref<Image> &p_image, const Vector2 &p_size, const Vector2i &p_verts,
 									double p_height_scale, double p_base_height, int p_filter,
 									double p_height_power = 1.0, double p_inset = 0.0,
-									int64_t p_seed = 0, double p_ao = 0.0, double p_variation = 0.0) const;
+									int64_t p_seed = 0, double p_ao = 0.0, double p_variation = 0.0,
+									double p_clip_below_height = 0.0) const;
+	// Native pipeline variant that returns the exact resolved heights consumed
+	// by the mesh, avoiding a second full-image sample for gameplay queries.
+	Ref<ArrayMesh> build_array_mesh_with_heights(const Ref<Image> &p_image, const Vector2 &p_size, const Vector2i &p_verts,
+											 double p_height_scale, double p_base_height, int p_filter,
+											 double p_height_power, double p_inset, int64_t p_seed,
+											 double p_ao, double p_variation, double p_clip_below_height,
+											 std::vector<float> &r_heights) const;
 	// Hex-prism honeycomb backend: pointy-top hexagonal columns on an offset
 	// lattice, with domain-warped sampling and per-cell jitter so the result
 	// reads as grown comb rather than printed grid. warp/jitter in [0,1],

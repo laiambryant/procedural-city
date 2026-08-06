@@ -77,26 +77,48 @@ String ProcCityGenerator::_cell_budget_error() const {
 static PackedFloat32Array pack_heights(const std::vector<float> &p_heights) {
 	PackedFloat32Array packed;
 	packed.resize((int64_t)p_heights.size());
-	memcpy(packed.ptrw(), p_heights.data(), p_heights.size() * sizeof(float));
+	if (!p_heights.empty()) {
+		memcpy(packed.ptrw(), p_heights.data(), p_heights.size() * sizeof(float));
+	}
 	return packed;
 }
 
+void ProcCityGenerator::_invalidate_cell_heights_cache() {
+	_cell_heights_cache.clear();
+	_height_inputs_revision++;
+}
+
+void ProcCityGenerator::_cache_cell_heights(const std::vector<float> &p_heights) const {
+	const CellGrid grid = make_cell_grid(mesh_size, grid_vertices);
+	Dictionary result;
+	result["columns"] = grid.cols;
+	result["rows"] = grid.rows;
+	result["cell_size"] = Vector2(grid.cw, grid.cd);
+	result["origin"] = Vector2(grid.ox, grid.oz);
+	result["heights"] = pack_heights(p_heights);
+	_cell_heights_cache = result;
+}
+
 Dictionary ProcCityGenerator::get_cell_heights() const {
+	if (_cell_heights_cache.size() > 0) {
+		return _cell_heights_cache;
+	}
 	Dictionary result;
 	if (_height_image.is_null()) {
 		return result;
 	}
 	const CellGrid grid = make_cell_grid(mesh_size, grid_vertices);
 	std::vector<float> heights;
-	if (!resolve_cell_heights(_height_image, grid, height_scale, base_height, sample_filter, heights)) {
+	if (!resolve_cell_heights(_height_image, grid, height_scale, base_height, sample_filter, heights, height_power)) {
 		return result;
 	}
-	result["columns"] = grid.cols;
-	result["rows"] = grid.rows;
-	result["cell_size"] = Vector2(grid.cw, grid.cd);
-	result["origin"] = Vector2(grid.ox, grid.oz);
-	result["heights"] = pack_heights(heights);
-	return result;
+	_cache_cell_heights(heights);
+	return _cell_heights_cache;
+}
+
+void ProcCityGenerator::release_source_images() {
+	_height_image.unref();
+	_release_material_images();
 }
 
 void ProcCityGenerator::generate_displacement() {

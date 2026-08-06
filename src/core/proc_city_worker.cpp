@@ -44,11 +44,11 @@ static const char *cli_display_name(int p_generation_mode) {
 // which itself still handles the exit-2 CPU fallback downstream.
 static Dictionary run_generation_bundle(const Ref<GoplacementxRunner> &p_runner, const String &p_binary,
 										const String &p_config, const Array &p_emits, const Ref<GoplacementxParams> &p_params,
-										int p_used_mode, bool p_use_server) {
+										int p_used_mode, bool p_use_server, int p_material_max_size, bool p_mipmaps) {
 	if (p_used_mode == ProcCityGenerator::GEN_GPU && p_use_server) {
 		ProcCityGpuServer *server = ProcCityGpuServer::get_singleton();
 		if (server && server->ensure_started(p_binary)) {
-			const Dictionary served = server->run_bundle(p_config, p_emits, p_params);
+			const Dictionary served = server->run_bundle(p_config, p_emits, p_params, p_material_max_size, p_mipmaps);
 			if ((int)served.get("code", 1) == 0) {
 				return served;
 			}
@@ -82,12 +82,13 @@ static CliKind to_binary_provider_kind(int p_generation_mode) {
 // session instead of once per generation. Returns an empty Dictionary - never
 // one with a "code" key - when gRPC isn't available for this binary, so the
 // caller knows to fall back to writing the config file.
-static Dictionary try_grpc_bundle(const String &p_binary, int p_used_mode, const Array &p_emits, const Ref<GoplacementxParams> &p_params) {
+static Dictionary try_grpc_bundle(const String &p_binary, int p_used_mode, const Array &p_emits,
+		const Ref<GoplacementxParams> &p_params, int p_material_max_size, bool p_mipmaps) {
 	ProcCityRpcClient *rpc = proc_city_rpc_client_for(to_binary_provider_kind(p_used_mode));
 	if (!rpc->ensure_started(p_binary)) {
 		return Dictionary();
 	}
-	const Dictionary served = rpc->run_bundle(p_emits, p_params);
+	const Dictionary served = rpc->run_bundle(p_emits, p_params, p_material_max_size, p_mipmaps);
 	if ((int)served.get("code", 1) == 0) {
 		return served;
 	}
@@ -124,12 +125,17 @@ void ProcCityGenerator::_thread_body(Dictionary p_job) {
 	result["stages"] = stages;
 	result["seed"] = p_job["seed"];
 	result["texture_mode"] = p_job["texture_mode"];
+	result["texture_filter"] = p_job["texture_filter"];
 	result["dir"] = dir;
+	const int material_size = (int)p_job.get("material_max_size", 0);
+	const bool material_mipmaps =
+			(int)p_job.get("texture_filter", TEXTURE_FILTER_LINEAR) == TEXTURE_FILTER_LINEAR_MIPMAP_ANISOTROPIC;
+	result["height_inputs_revision"] = p_job.get("height_inputs_revision", -1);
 
 	Array emits = plan_emits_for_cli(runner, p_job, dir, stages & STAGE_HEIGHT, stages & STAGE_MATERIAL, result);
 
 	String config;
-	Dictionary run = try_grpc_bundle(binary, used_mode, emits, p);
+	Dictionary run = try_grpc_bundle(binary, used_mode, emits, p, material_size, material_mipmaps);
 	if (run.is_empty()) {
 		config = runner->write_config(dir, p);
 		if (config.is_empty()) {
@@ -138,7 +144,8 @@ void ProcCityGenerator::_thread_body(Dictionary p_job) {
 		}
 		result["config_path"] = config;
 		const bool use_server = (bool)p_job.get("use_gpu_server", false) && !(bool)p_job.get("keep_intermediate_png", false);
-		run = run_generation_bundle(runner, binary, config, emits, p, used_mode, use_server);
+		run = run_generation_bundle(runner, binary, config, emits, p, used_mode, use_server,
+				material_size, material_mipmaps);
 	}
 	if (used_mode == GEN_GPU && (int)run["code"] == GPU_NO_ADAPTER_EXIT) {
 		UtilityFunctions::push_warning("[ProcCity] gpudisplacementx reported no usable GPU adapter (exit 2) - falling back to the CPU pipeline.");
@@ -150,7 +157,7 @@ void ProcCityGenerator::_thread_body(Dictionary p_job) {
 		}
 		used_mode = GEN_CPU;
 		emits = plan_emits_for_cli(runner, p_job, dir, stages & STAGE_HEIGHT, stages & STAGE_MATERIAL, result);
-		run = try_grpc_bundle(binary, used_mode, emits, p);
+		run = try_grpc_bundle(binary, used_mode, emits, p, material_size, material_mipmaps);
 		if (run.is_empty()) {
 			if (config.is_empty()) {
 				config = runner->write_config(dir, p);
@@ -171,10 +178,15 @@ void ProcCityGenerator::_thread_body(Dictionary p_job) {
 
 	String fail_stage;
 	String fail_message;
-	if (!load_result_images(result, run.get("images", Dictionary()), fail_stage, fail_message)) {
+	if ((int)p_job.get("texture_mode", TEX_SINGLE) == TEX_SHARED && p_job.has("existing_height_image")) {
+		result["shared_height_image"] = p_job["existing_height_image"];
+	}
+	if (!load_result_images(result, run.get("images", Dictionary()), material_size, material_mipmaps,
+			fail_stage, fail_message)) {
 		call_deferred("_emit_failed", fail_stage, fail_message);
 		return;
 	}
+	prepare_material_images(result, material_size, material_mipmaps);
 
 	if ((stages & STAGE_GEOMETRY) && !build_worker_mesh(p_job, result)) {
 		call_deferred("_emit_failed", "geometry", "Worker mesh build failed.");

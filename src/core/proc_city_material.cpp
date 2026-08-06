@@ -11,17 +11,24 @@ using namespace godot;
 
 Ref<Image> ProcCityGenerator::_resolve_albedo_image() {
 	if (_material_texture_mode == TEX_CHANNELS) {
-		return compose_rgb_albedo(_r_image, _g_image, _b_image);
+		if (_albedo_image.is_valid()) {
+			return _albedo_image;
+		}
+		Ref<Image> composed = compose_rgb_albedo(_r_image, _g_image, _b_image);
+		if (composed.is_valid() && _material_texture_filter == TEXTURE_FILTER_LINEAR_MIPMAP_ANISOTROPIC) {
+			composed->generate_mipmaps();
+		}
+		return composed;
 	}
 	return _albedo_image;
 }
 
 Ref<Image> ProcCityGenerator::_resolve_roughness_image() const {
+	if (_rough_image.is_valid()) {
+		return _rough_image;
+	}
 	if (_material_texture_mode == TEX_SHARED) {
 		return _height_image;
-	}
-	if (_material_texture_mode == TEX_CHANNELS) {
-		return _rough_image;
 	}
 	return Ref<Image>();
 }
@@ -36,7 +43,7 @@ CityMaterialSpec ProcCityGenerator::_material_spec() {
 	spec.roughness = roughness;
 	spec.metallic = metallic;
 	spec.uv_scale = uv_scale;
-	spec.filter_nearest = texture_filter == TEXTURE_FILTER_NEAREST;
+	spec.texture_filter = _material_texture_filter;
 	spec.repeat = texture_repeat;
 	return spec;
 }
@@ -49,6 +56,16 @@ void ProcCityGenerator::_apply_material_main() {
 	}
 	_material = mat;
 	_apply_material_to_generated();
+	_release_material_images();
+}
+
+void ProcCityGenerator::_release_material_images() {
+	_albedo_image.unref();
+	_normal_image.unref();
+	_r_image.unref();
+	_g_image.unref();
+	_b_image.unref();
+	_rough_image.unref();
 }
 
 // _retint_generated_library reaches the one place a GridMap city's look lives.

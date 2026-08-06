@@ -15,6 +15,8 @@
 #include <godot_cpp/variant/vector2i.hpp>
 #include <godot_cpp/variant/vector3.hpp>
 
+#include <vector>
+
 #include "cli/goplacementx_params.h"
 
 namespace godot {
@@ -61,6 +63,7 @@ public:
 	enum TextureFilter {
 		TEXTURE_FILTER_NEAREST = 0,
 		TEXTURE_FILTER_LINEAR = 1,
+		TEXTURE_FILTER_LINEAR_MIPMAP_ANISOTROPIC = 2,
 	};
 
 private:
@@ -84,6 +87,9 @@ private:
 	// footprint, turning the merged grid into freestanding buildings with
 	// streets between them (ArrayMesh adds a ground plane).
 	double block_inset = 0.0;
+	// ArrayMesh-only cutoff in mesh-local height units. Cells at or below it
+	// and wall portions hidden below it are omitted. Zero keeps legacy output.
+	double clip_below_height = 0.0;
 	int build_mode = BUILD_ARRAY_MESH;
 	int sample_filter = 1;
 	int max_cells = 8192;
@@ -120,6 +126,9 @@ private:
 	double roughness = 1.0;
 	double metallic = 0.0;
 	int texture_filter = 1;
+	// Largest edge uploaded for material maps. Height/displacement stays at its
+	// authored resolution so geometry is unchanged. Zero disables resizing.
+	int material_max_size = 0;
 	bool texture_repeat = true;
 	bool keep_intermediate_png = false;
 	bool persist_in_scene = true;
@@ -141,6 +150,11 @@ private:
 	Ref<Image> _b_image;
 	Ref<Image> _rough_image;
 	Ref<Material> _material;
+	mutable Dictionary _cell_heights_cache;
+	// Monotonic signature for every input that changes the logical cell-height
+	// grid. Worker results carry the launch revision so a setter invoked while a
+	// job is in flight cannot restore a cache sampled with obsolete settings.
+	int64_t _height_inputs_revision = 0;
 	// The MeshLibrary the GridMap backend generated for the installed city, if
 	// any. Held so the material stage can retint its block mesh; a
 	// user-supplied library is never mutated, so it is not tracked here.
@@ -151,6 +165,10 @@ private:
 	// Texture mode the cached material images were generated for; drives how
 	// _apply_material_main routes them onto the material.
 	int _material_texture_mode = TEX_SINGLE;
+	// Filter captured with the job that produced the retained maps. Inspector
+	// edits made while a worker is running must not change how that result is
+	// uploaded after its mip policy has already been decided.
+	int _material_texture_filter = TEXTURE_FILTER_LINEAR;
 	int64_t _resolved_seed = 0;
 	int _last_generation_used = GEN_CPU;
 	Ref<Thread> _worker;
@@ -161,6 +179,9 @@ private:
 	Node *_get_generated() const;
 	void _set_owner_recursive(Node *p_node, Node *p_owner);
 	String _cell_budget_error() const;
+	void _invalidate_cell_heights_cache();
+	void _cache_cell_heights(const std::vector<float> &p_heights) const;
+	bool _result_matches_height_inputs(const Dictionary &p_result) const;
 
 	bool _build_geometry_main();
 	Node3D *_make_geometry_container();
@@ -181,6 +202,7 @@ private:
 
 	CityMaterialSpec _material_spec();
 	void _apply_material_main();
+	void _release_material_images();
 	Ref<Image> _resolve_albedo_image();
 	Ref<Image> _resolve_roughness_image() const;
 	void _apply_material_to_generated();
@@ -208,24 +230,26 @@ protected:
 public:
 	void set_params(const Ref<GoplacementxParams> &p_params);
 	Ref<GoplacementxParams> get_params() const;
-	void set_mesh_size(const Vector2 &p_size) { mesh_size = p_size; }
+	void set_mesh_size(const Vector2 &p_size) { mesh_size = p_size; _invalidate_cell_heights_cache(); }
 	Vector2 get_mesh_size() const { return mesh_size; }
-	void set_grid_vertices(const Vector2i &p_v) { grid_vertices = p_v; }
+	void set_grid_vertices(const Vector2i &p_v) { grid_vertices = p_v; _invalidate_cell_heights_cache(); }
 	Vector2i get_grid_vertices() const { return grid_vertices; }
-	void set_height_scale(double p_v) { height_scale = p_v; }
+	void set_height_scale(double p_v) { height_scale = p_v; _invalidate_cell_heights_cache(); }
 	double get_height_scale() const { return height_scale; }
-	void set_base_height(double p_v) { base_height = p_v; }
+	void set_base_height(double p_v) { base_height = p_v; _invalidate_cell_heights_cache(); }
 	double get_base_height() const { return base_height; }
-	void set_height_power(double p_v) { height_power = p_v; }
+	void set_height_power(double p_v) { height_power = p_v; _invalidate_cell_heights_cache(); }
 	double get_height_power() const { return height_power; }
 	void set_block_inset(double p_v) { block_inset = p_v; }
 	double get_block_inset() const { return block_inset; }
+	void set_clip_below_height(double p_v) { clip_below_height = p_v; }
+	double get_clip_below_height() const { return clip_below_height; }
 	void set_build_mode(int p_v) { build_mode = p_v; }
 	int get_build_mode() const { return build_mode; }
 	void set_generation_mode(int p_v) { generation_mode = p_v; }
 	int get_generation_mode() const { return generation_mode; }
 	int get_last_generation_mode_used() const { return _last_generation_used; }
-	void set_sample_filter(int p_v) { sample_filter = p_v; }
+	void set_sample_filter(int p_v) { sample_filter = p_v; _invalidate_cell_heights_cache(); }
 	int get_sample_filter() const { return sample_filter; }
 	void set_max_cells(int p_v) { max_cells = p_v; }
 	int get_max_cells() const { return max_cells; }
@@ -269,6 +293,8 @@ public:
 	double get_metallic() const { return metallic; }
 	void set_texture_filter(int p_v) { texture_filter = p_v; }
 	int get_texture_filter() const { return texture_filter; }
+	void set_material_max_size(int p_v) { material_max_size = p_v; }
+	int get_material_max_size() const { return material_max_size; }
 	void set_texture_repeat(bool p_v) { texture_repeat = p_v; }
 	bool get_texture_repeat() const { return texture_repeat; }
 	void set_keep_intermediate_png(bool p_v) { keep_intermediate_png = p_v; }
@@ -290,10 +316,11 @@ public:
 
 	// Direct access to the cached displacement image: lets scripts feed their
 	// own heightmap into Build Geometry without running the CLI.
-	void set_height_image(const Ref<Image> &p_image) { _height_image = p_image; }
+	void set_height_image(const Ref<Image> &p_image) { _height_image = p_image; _invalidate_cell_heights_cache(); }
 	Ref<Image> get_height_image() const { return _height_image; }
 
 	Dictionary get_cell_heights() const;
+	void release_source_images();
 
 	void generate_displacement();
 	void build_geometry();

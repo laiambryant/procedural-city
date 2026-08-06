@@ -19,6 +19,8 @@ void ProcCityGenerator::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_height_power"), &ProcCityGenerator::get_height_power);
 	ClassDB::bind_method(D_METHOD("set_block_inset", "value"), &ProcCityGenerator::set_block_inset);
 	ClassDB::bind_method(D_METHOD("get_block_inset"), &ProcCityGenerator::get_block_inset);
+	ClassDB::bind_method(D_METHOD("set_clip_below_height", "value"), &ProcCityGenerator::set_clip_below_height);
+	ClassDB::bind_method(D_METHOD("get_clip_below_height"), &ProcCityGenerator::get_clip_below_height);
 	ClassDB::bind_method(D_METHOD("set_height_image", "image"), &ProcCityGenerator::set_height_image);
 	ClassDB::bind_method(D_METHOD("get_height_image"), &ProcCityGenerator::get_height_image);
 	ClassDB::bind_method(D_METHOD("set_build_mode", "mode"), &ProcCityGenerator::set_build_mode);
@@ -72,6 +74,8 @@ void ProcCityGenerator::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_metallic"), &ProcCityGenerator::get_metallic);
 	ClassDB::bind_method(D_METHOD("set_texture_filter", "value"), &ProcCityGenerator::set_texture_filter);
 	ClassDB::bind_method(D_METHOD("get_texture_filter"), &ProcCityGenerator::get_texture_filter);
+	ClassDB::bind_method(D_METHOD("set_material_max_size", "value"), &ProcCityGenerator::set_material_max_size);
+	ClassDB::bind_method(D_METHOD("get_material_max_size"), &ProcCityGenerator::get_material_max_size);
 	ClassDB::bind_method(D_METHOD("set_texture_repeat", "value"), &ProcCityGenerator::set_texture_repeat);
 	ClassDB::bind_method(D_METHOD("get_texture_repeat"), &ProcCityGenerator::get_texture_repeat);
 	ClassDB::bind_method(D_METHOD("set_keep_intermediate_png", "value"), &ProcCityGenerator::set_keep_intermediate_png);
@@ -97,6 +101,7 @@ void ProcCityGenerator::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("clear_generated"), &ProcCityGenerator::clear_generated);
 	ClassDB::bind_method(D_METHOD("is_busy"), &ProcCityGenerator::is_busy);
 	ClassDB::bind_method(D_METHOD("get_cell_heights"), &ProcCityGenerator::get_cell_heights);
+	ClassDB::bind_method(D_METHOD("release_source_images"), &ProcCityGenerator::release_source_images);
 
 	ClassDB::bind_method(D_METHOD("_thread_body", "job"), &ProcCityGenerator::_thread_body);
 	ClassDB::bind_method(D_METHOD("_apply_results", "result"), &ProcCityGenerator::_apply_results);

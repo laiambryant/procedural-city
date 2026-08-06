@@ -38,13 +38,6 @@ static int red_stride_for_format(Image::Format p_format) {
 	}
 }
 
-static void extract_red_channel(const uint8_t *p_src, int p_stride, size_t p_pixel_count, std::vector<uint8_t> &r_red) {
-	r_red.resize(p_pixel_count);
-	for (size_t i = 0; i < p_pixel_count; i++) {
-		r_red[i] = p_src[i * (size_t)p_stride];
-	}
-}
-
 HeightImageView godot::decode_height_image(const Ref<Image> &p_source) {
 	HeightImageView view;
 	if (p_source.is_null() || p_source->is_empty()) {
@@ -61,20 +54,16 @@ HeightImageView godot::decode_height_image(const Ref<Image> &p_source) {
 	view.data = src->get_data();
 	view.width = src->get_width();
 	view.height = src->get_height();
+	view.stride = stride;
 	if (view.width <= 0 || view.height <= 0) {
 		return view;
 	}
-	if (stride == 1) {
-		view.pixels = view.data.ptr();
-	} else {
-		extract_red_channel(view.data.ptr(), stride, (size_t)view.width * (size_t)view.height, view.red);
-		view.pixels = view.red.data();
-	}
+	view.pixels = view.data.ptr();
 	return view;
 }
 
 static float red_at(const HeightImageView &p_view, int p_x, int p_y) {
-	return (float)p_view.pixels[p_y * p_view.width + p_x];
+	return (float)p_view.pixels[((size_t)p_y * (size_t)p_view.width + (size_t)p_x) * (size_t)p_view.stride];
 }
 
 static float sample_cell_nearest(const HeightImageView &p_view, int p_i, int p_j, int p_cols, int p_rows) {
@@ -103,9 +92,15 @@ static float sample_cell_box_average(const HeightImageView &p_view, int p_i, int
 
 	uint64_t sum = 0;
 	for (int y = y0; y < y1; y++) {
-		const uint8_t *row = p_view.pixels + (size_t)y * (size_t)p_view.width;
-		for (int x = x0; x < x1; x++) {
-			sum += row[x];
+		const uint8_t *row = p_view.pixels + (size_t)y * (size_t)p_view.width * (size_t)p_view.stride;
+		if (p_view.stride == 1) {
+			for (int x = x0; x < x1; x++) {
+				sum += row[x];
+			}
+		} else {
+			for (int x = x0; x < x1; x++) {
+				sum += row[(size_t)x * (size_t)p_view.stride];
+			}
 		}
 	}
 	const uint64_t count = (uint64_t)(x1 - x0) * (uint64_t)(y1 - y0);

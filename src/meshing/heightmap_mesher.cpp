@@ -17,9 +17,9 @@ using namespace godot;
 void HeightmapMesher::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("sample_height", "image", "i", "j", "cols", "rows", "filter"),
 						 &HeightmapMesher::sample_height);
-	ClassDB::bind_method(D_METHOD("build_array_mesh", "image", "size", "verts", "height_scale", "base_height", "filter", "height_power", "inset", "seed", "ao", "variation"),
+	ClassDB::bind_method(D_METHOD("build_array_mesh", "image", "size", "verts", "height_scale", "base_height", "filter", "height_power", "inset", "seed", "ao", "variation", "clip_below_height"),
 						 &HeightmapMesher::build_array_mesh,
-						 DEFVAL(1.0), DEFVAL(0.0), DEFVAL(0), DEFVAL(0.0), DEFVAL(0.0));
+						 DEFVAL(1.0), DEFVAL(0.0), DEFVAL(0), DEFVAL(0.0), DEFVAL(0.0), DEFVAL(0.0));
 	ClassDB::bind_method(D_METHOD("build_hex_mesh", "image", "size", "verts", "height_scale", "base_height", "filter", "warp", "jitter", "gap", "seed", "flat_rect", "rim_boost", "rim_falloff", "height_power", "ao", "variation", "floor"),
 						 &HeightmapMesher::build_hex_mesh,
 						 DEFVAL(Rect2()), DEFVAL(0.0), DEFVAL(24.0), DEFVAL(1.0), DEFVAL(0.0), DEFVAL(0.0), DEFVAL(false));

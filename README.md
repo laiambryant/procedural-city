@@ -247,8 +247,11 @@ gen.generate_material()
 
 `material_mode` (Standard/ORM), `normal_strength`, `roughness`, `metallic`,
 `uv_scale` (tiles the maps over the mesh — ArrayMesh only), `texture_filter`
-(`Nearest` for a crisp pixel-art look, `Linear` for smooth), and
-`texture_repeat`.
+(`Nearest` for a crisp pixel-art look, `Linear` for smooth, or
+`Linear Mipmap Anisotropic` for runtime camera movement), `texture_repeat`, and
+`material_max_size` (`0` keeps the generated resolution; a positive value
+downscales material maps before their GPU upload without changing the height
+map used for geometry).
 
 ### Style options (baked into the mesh)
 
@@ -284,9 +287,21 @@ The generation pipeline is built for large grids and large maps:
   maps it straight into an `Image` — no encode, no decode, height maps load as
   single-channel L8. Set **Keep Intermediate PNG** to get inspectable PNGs
   instead (slower).
-- **Height images decode lazily**: single-channel sources are sampled in place
-  with no copy or format conversion; other formats reduce to a compact
-  red-channel buffer once.
+- **Raw maps stream into their final allocation** from disk, the CLI pipe, and
+  gRPC. Bundle responses are decoded map-by-map, so the client does not retain
+  a second full response alongside all decoded images.
+- **Height images are sampled in place** with their native pixel stride, with
+  no full-image format conversion or extracted red-channel copy.
+- **Hidden geometry can be clipped before allocation**: set
+  `clip_below_height` to the world-space height of an opaque ground or street
+  plane. ArrayMesh roofs below it are omitted and crossing walls are clamped to
+  it; the same compact surface feeds render and collision generation.
+- **Cell heights are cached during ArrayMesh construction**. Subsequent
+  `get_cell_heights()` calls return the exact samples already used by the mesh
+  instead of scanning the source map again.
+- After consuming the cached heights, call `release_source_images()` to drop
+  the CPU-side height/albedo/normal sources. Material textures and generated
+  geometry remain valid.
 
 `demo/tests/bench_meshers.gd` times the mesher backends headless;
 `demo/tests/multimesh_parity.gd` pins the multimesh buffer layout;
@@ -306,6 +321,10 @@ The generation pipeline is built for large grids and large maps:
   enables the combiner's own `use_collision` instead; GridMap mode bakes a
   `BoxShape3D` into the generated MeshLibrary item and sets the node's
   collision layer, since a GridMap is its own collider.
+- `clip_below_height` is an ArrayMesh optimization for cities sunk under an
+  opaque plane. `0` disables it; otherwise cells entirely below the cutoff are
+  discarded and exposed walls begin at the cutoff. Match it to the plane's
+  local Y height so visible geometry is unchanged.
 - **GridMap** quantizes each column's height into stacked cells instead of
   extruding a mesh: `gridmap_level_height` sets the vertical cell size (0
   derives one from the footprint so cells come out roughly cubic), rounded to

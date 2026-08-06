@@ -57,7 +57,8 @@ public:
 	// entry, same key load_result_images already expects from the GPU pipe
 	// server).
 	Dictionary run_generate(const String &p_mode, int64_t p_seed, const String &p_out_key, const Ref<GoplacementxParams> &p_params) const;
-	Dictionary run_bundle(const Array &p_emits, const Ref<GoplacementxParams> &p_params) const;
+	Dictionary run_bundle(const Array &p_emits, const Ref<GoplacementxParams> &p_params,
+			int p_material_max_size, bool p_mipmaps) const;
 	Dictionary randomize(int64_t p_seed) const;
 	String version() const;
 };

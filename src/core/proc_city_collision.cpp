@@ -42,7 +42,8 @@ void ProcCityGenerator::_attach_multimesh_body(Node3D *p_container) {
 	Ref<HeightmapMesher> mesher;
 	mesher.instantiate();
 	Ref<ArrayMesh> source = mesher->build_array_mesh(_height_image, mesh_size, grid_vertices, height_scale, base_height,
-													 sample_filter, height_power, block_inset);
+												 sample_filter, height_power, block_inset, 0, 0.0, 0.0,
+												 clip_below_height);
 	add_trimesh_body(p_container, source, collision_layer);
 }
 

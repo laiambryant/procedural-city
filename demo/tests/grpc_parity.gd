@@ -18,6 +18,7 @@ func _init() -> void:
 		quit(1)
 		return
 	out_dir = args[2]
+	DirAccess.make_dir_recursive_absolute(out_dir)
 	_run(args[0], args[1])
 
 

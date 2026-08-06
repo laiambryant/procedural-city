@@ -66,6 +66,24 @@ func _init() -> void:
 	var idx_i: PackedInt32Array = arrays_i[Mesh.ARRAY_INDEX]
 	check(idx_i.size() / 6 == 1024 * 5 + 1, "inset mode emits 5 quads/cell + ground (%d quads)" % (idx_i.size() / 6))
 
+	# --- clip_below_height: omit geometry hidden under an opaque plane ---
+	var mesh_clip: ArrayMesh = mesher.build_array_mesh(
+			img, size, verts, 4.0, 0.0, HeightmapMesher.FILTER_BOX_AVERAGE,
+			1.0, 0.0, 0, 0.0, 0.0, 2.0)
+	var arrays_clip := mesh_clip.surface_get_arrays(0)
+	var vtx_clip: PackedVector3Array = arrays_clip[Mesh.ARRAY_VERTEX]
+	var idx_clip: PackedInt32Array = arrays_clip[Mesh.ARRAY_INDEX]
+	var clipped_min_y := INF
+	for v in vtx_clip:
+		clipped_min_y = minf(clipped_min_y, v.y)
+	check(idx_clip.size() < idx.size(), "height clip removes buried triangles")
+	check(clipped_min_y >= 2.0, "height clip clamps every emitted wall to its plane")
+	var mesh_all_clipped: ArrayMesh = mesher.build_array_mesh(
+			img, size, verts, 4.0, 0.0, HeightmapMesher.FILTER_BOX_AVERAGE,
+			1.0, 0.0, 0, 0.0, 0.0, 5.0)
+	check(mesh_all_clipped != null and mesh_all_clipped.get_surface_count() == 0,
+			"fully clipped merged mesh returns a valid empty ArrayMesh")
+
 	# --- hex mesh still works, with power ---
 	var hex: ArrayMesh = mesher.build_hex_mesh(img, size, verts, 4.0, 0.0, 1, 0.35, 0.45, 0.06, 42, Rect2(), 0.0, 24.0, 2.0)
 	check(hex != null and hex.get_aabb().size.y > 0.0, "hex mesh built with height_power")
@@ -97,6 +115,26 @@ func _init() -> void:
 		var shape_node := body.get_node_or_null("CollisionShape")
 		var shape: ConcavePolygonShape3D = shape_node.shape if shape_node else null
 		check(shape != null and shape.get_faces().size() > 0, "trimesh shape has faces")
+	var heights_before: PackedFloat32Array = gen.get_cell_heights().get("heights", PackedFloat32Array())
+	gen.height_scale = 8.0
+	gen.build_geometry()
+	var heights_after: PackedFloat32Array = gen.get_cell_heights().get("heights", PackedFloat32Array())
+	check(heights_before.size() == heights_after.size() and heights_before.size() > 0 and
+			is_equal_approx(heights_after[0], heights_before[0] * 2.0),
+			"synchronous rebuild replaces the cell-height cache after setter changes")
+	gen.height_scale = 6.0 # invalidates the cache after the simulated job launch
+	var stale_values := PackedFloat32Array([-999.0])
+	gen.call("_apply_results", {
+		"stages": 0,
+		"seed": 0,
+		"height_inputs_revision": 0,
+		"cell_heights": {"heights": stale_values},
+	})
+	var heights_after_stale_result: PackedFloat32Array = gen.get_cell_heights().get("heights", PackedFloat32Array())
+	check(heights_after_stale_result.size() == heights_before.size() and
+			heights_after_stale_result.size() > 0 and heights_after_stale_result[0] >= 0.0,
+			"result from an older height-input revision cannot restore its stale cache")
+	gen.height_scale = 4.0
 
 	# --- multimesh collision path ---
 	gen.build_mode = ProcCityGenerator.BUILD_MULTIMESH
@@ -153,6 +191,15 @@ func _init() -> void:
 	var big_mesh: ArrayMesh = mesher.build_array_mesh(img, size, big, 4.0, 0.0, HeightmapMesher.FILTER_BOX_AVERAGE)
 	var p1 := Time.get_ticks_usec()
 	check(big_mesh != null, "16384-cell mesh in %.1f ms" % ((p1 - p0) / 1000.0))
+
+	# --- compact height cache survives releasing the full source image ---
+	gen.height_power = 2.0
+	var cached_heights := gen.get_cell_heights()
+	var cached_values: PackedFloat32Array = cached_heights.get("heights", PackedFloat32Array())
+	gen.release_source_images()
+	check(gen.get_height_image() == null, "source height image released after runtime upload")
+	check(cached_values.size() == 1024 and gen.get_cell_heights() == cached_heights,
+			"resolved cell-height cache survives source release")
 
 	print("---")
 	if fails == 0:

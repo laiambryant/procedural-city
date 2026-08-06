@@ -4,6 +4,7 @@
 
 #include "cli/gdxraw_loader.h"
 #include "cli/goplacementx_params_proto.h"
+#include "material/city_material_builder.h"
 
 #include <godot_cpp/classes/image.hpp>
 #include <godot_cpp/classes/json.hpp>
@@ -157,10 +158,8 @@ Dictionary ProcCityRpcClient::run_generate(const String &p_mode, int64_t p_seed,
 		return reply_error(String(status.error_message().c_str()));
 	}
 
-	PackedByteArray bytes;
-	bytes.resize(reply.gdxraw().size());
-	memcpy(bytes.ptrw(), reply.gdxraw().data(), reply.gdxraw().size());
-	Ref<Image> image = decode_gdxraw(bytes);
+	Ref<Image> image = decode_gdxraw_bytes(
+			(const uint8_t *)reply.gdxraw().data(), (int64_t)reply.gdxraw().size());
 	if (image.is_null()) {
 		return reply_error("gRPC server sent an undecodable map");
 	}
@@ -173,7 +172,8 @@ Dictionary ProcCityRpcClient::run_generate(const String &p_mode, int64_t p_seed,
 	return out;
 }
 
-Dictionary ProcCityRpcClient::run_bundle(const Array &p_emits, const Ref<GoplacementxParams> &p_params) const {
+Dictionary ProcCityRpcClient::run_bundle(const Array &p_emits, const Ref<GoplacementxParams> &p_params,
+		int p_material_max_size, bool p_mipmaps) const {
 	std::lock_guard<std::mutex> guard(io_mutex);
 	if (!stubs) {
 		return reply_error("rpc client not connected");
@@ -182,6 +182,12 @@ Dictionary ProcCityRpcClient::run_bundle(const Array &p_emits, const Ref<Goplace
 	displacement::v1::BundleRequest req;
 	*req.mutable_params() = params_to_proto(p_params);
 	*req.mutable_options() = render_options_from(p_params);
+	struct EmitPreparation {
+		bool material = false;
+		bool normal = false;
+		bool compose_channel = false;
+	};
+	std::unordered_map<std::string, EmitPreparation> preparation_by_id;
 	for (int i = 0; i < p_emits.size(); i++) {
 		const Dictionary e = p_emits[i];
 		const String path = e.get("path", "");
@@ -192,38 +198,66 @@ Dictionary ProcCityRpcClient::run_bundle(const Array &p_emits, const Ref<Goplace
 		emit->set_id(std::string(path.utf8().get_data()));
 		emit->set_mode(std::string(String(e.get("mode", "grayscale")).utf8().get_data()));
 		emit->set_seed((uint64_t)(int64_t)e.get("seed", 0));
+		preparation_by_id[std::string(path.utf8().get_data())] = {
+			(bool)e.get("material", false),
+			(bool)e.get("normal", false),
+			(bool)e.get("compose_channel", false),
+		};
 	}
 
 	grpc::ClientContext ctx;
 	std::unique_ptr<grpc::ClientReader<displacement::v1::MapChunk>> reader(stubs->stub->Bundle(&ctx, req));
 
-	std::unordered_map<std::string, std::string> accumulated;
+	Dictionary images;
+	std::string current_id;
+	std::unique_ptr<GdxrawStreamDecoder> decoder;
+	String decode_error;
 	displacement::v1::MapChunk chunk;
 	while (reader->Read(&chunk)) {
-		accumulated[chunk.id()].append(chunk.data());
+		if (!decoder) {
+			current_id = chunk.id();
+			decoder = std::make_unique<GdxrawStreamDecoder>();
+		} else if (chunk.id() != current_id) {
+			decode_error = "gRPC server changed map id before the terminal chunk";
+			ctx.TryCancel();
+			break;
+		}
+		if (!decoder->append((const uint8_t *)chunk.data().data(), (int64_t)chunk.data().size())) {
+			decode_error = "gRPC server sent a malformed GDXR map for " + String(current_id.c_str());
+			ctx.TryCancel();
+			break;
+		}
 		if (chunk.last()) {
-			// Nothing else to do here; decoding happens after Finish() so a
-			// mid-stream RPC failure can still be reported as one error
-			// instead of partially-decoded images.
+			Ref<Image> image = decoder->finish();
+			if (image.is_null()) {
+				decode_error = "gRPC server sent a truncated GDXR map for " + String(current_id.c_str());
+				ctx.TryCancel();
+				break;
+			}
+			const auto prep = preparation_by_id.find(current_id);
+			if (prep == preparation_by_id.end()) {
+				decode_error = "gRPC server returned an unexpected map id " + String(current_id.c_str());
+				ctx.TryCancel();
+				break;
+			}
+			if (prep->second.material) {
+				prepare_material_image(image, p_material_max_size,
+						p_mipmaps && !prep->second.compose_channel, prep->second.normal);
+			}
+			images[String(current_id.c_str())] = image;
+			decoder.reset();
+			current_id.clear();
 		}
 	}
 	const grpc::Status status = reader->Finish();
+	if (!decode_error.is_empty()) {
+		return reply_error(decode_error);
+	}
 	if (!status.ok()) {
 		return reply_error(String(status.error_message().c_str()));
 	}
-
-	Dictionary images;
-	for (const auto &entry : accumulated) {
-		PackedByteArray bytes;
-		bytes.resize(entry.second.size());
-		if (!entry.second.empty()) {
-			memcpy(bytes.ptrw(), entry.second.data(), entry.second.size());
-		}
-		Ref<Image> image = decode_gdxraw(bytes);
-		if (image.is_null()) {
-			return reply_error("gRPC server sent an undecodable map for " + String(entry.first.c_str()));
-		}
-		images[String(entry.first.c_str())] = image;
+	if (decoder) {
+		return reply_error("gRPC server ended before the terminal map chunk");
 	}
 
 	Dictionary out;
@@ -312,7 +346,7 @@ Dictionary ProcCityRpcClient::run_generate(const String &, int64_t, const String
 	out["output"] = "gRPC support not built into this binary";
 	return out;
 }
-Dictionary ProcCityRpcClient::run_bundle(const Array &, const Ref<GoplacementxParams> &) const {
+Dictionary ProcCityRpcClient::run_bundle(const Array &, const Ref<GoplacementxParams> &, int, bool) const {
 	Dictionary out;
 	out["code"] = 1;
 	out["output"] = "gRPC support not built into this binary";

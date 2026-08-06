@@ -76,7 +76,10 @@ void ProcCityGenerator::_start_pipeline(int p_stages, bool p_fresh_seed) {
 // worker must never read member fields the main thread could mutate mid-run.
 Dictionary ProcCityGenerator::_snapshot_job(int p_stages) const {
 	Dictionary job;
-	job["params"] = params;
+	// The worker must not observe inspector/script mutations made after this
+	// launch. Resource refs are shared by default, so snapshot the properties.
+	Ref<Resource> params_copy = params->duplicate(true);
+	job["params"] = Ref<GoplacementxParams>(params_copy);
 	job["stages"] = p_stages;
 	job["generation_mode"] = generation_mode;
 	job["seed"] = _resolved_seed;
@@ -93,6 +96,7 @@ Dictionary ProcCityGenerator::_snapshot_job(int p_stages) const {
 	job["base_height"] = base_height;
 	job["height_power"] = height_power;
 	job["block_inset"] = block_inset;
+	job["clip_below_height"] = clip_below_height;
 	job["sample_filter"] = sample_filter;
 	job["hive_warp"] = hive_warp;
 	job["hive_jitter"] = hive_jitter;
@@ -103,15 +107,33 @@ Dictionary ProcCityGenerator::_snapshot_job(int p_stages) const {
 	job["hive_floor"] = hive_floor;
 	job["ao_strength"] = ao_strength;
 	job["color_variation"] = color_variation;
+	job["material_max_size"] = material_max_size;
+	job["texture_filter"] = texture_filter;
+	if ((p_stages & STAGE_MATERIAL) && !(p_stages & STAGE_HEIGHT) && _height_image.is_valid()) {
+		// TEX_SHARED needs a shading-only roughness copy. Holding this immutable
+		// Ref in the snapshot lets the worker duplicate/downsize it without a
+		// full-resolution copy or resize on the main thread.
+		job["existing_height_image"] = _height_image;
+	}
+	job["height_inputs_revision"] = _height_inputs_revision;
 	return job;
+}
+
+bool ProcCityGenerator::_result_matches_height_inputs(const Dictionary &p_result) const {
+	return (int64_t)p_result.get("height_inputs_revision", -1) == _height_inputs_revision;
 }
 
 void ProcCityGenerator::_apply_results(Dictionary p_result) {
 	const int stages = p_result["stages"];
+	const bool height_inputs_current = _result_matches_height_inputs(p_result);
 
 	if (p_result.has("height_image")) {
 		_height_image = p_result["height_image"];
 		_last_height_path = String(p_result.get("height_path", ""));
+		_cell_heights_cache.clear();
+	}
+	if (height_inputs_current && p_result.has("cell_heights")) {
+		_cell_heights_cache = p_result["cell_heights"];
 	}
 	_resolved_seed = (int64_t)p_result["seed"];
 	_last_generation_used = (int)p_result.get("generation_mode_used", GEN_CPU);
@@ -147,6 +169,7 @@ void ProcCityGenerator::_apply_results(Dictionary p_result) {
 
 void ProcCityGenerator::_store_result_images(const Dictionary &p_result) {
 	_material_texture_mode = (int)p_result.get("texture_mode", texture_mode);
+	_material_texture_filter = (int)p_result.get("texture_filter", texture_filter);
 	_albedo_image = image_or_null(p_result, "albedo_image");
 	_normal_image = image_or_null(p_result, "normal_image");
 	_r_image = image_or_null(p_result, "r_image");

@@ -22,9 +22,14 @@ Array plan_bundle_emits(const String &p_dir, uint64_t p_base_seed, bool p_want_h
 // load_result_images fills each result image slot from the maps produced by
 // plan_bundle_emits. Maps returned in-memory by the GPU server (keyed by their
 // echoed path in p_images) are used directly; the rest are decoded from disk
-// concurrently (each thread fills only its own slot). On failure it reports
-// which pipeline stage broke.
-bool load_result_images(Dictionary &r_result, const Dictionary &p_images, String &r_fail_stage, String &r_fail_message);
+// one at a time and material maps are prepared before retention. On failure it
+// reports which pipeline stage broke.
+bool load_result_images(Dictionary &r_result, const Dictionary &p_images, int p_material_max_size,
+		bool p_mipmaps, String &r_fail_stage, String &r_fail_message);
+
+// Resize material-only maps and optionally generate mipmaps on the worker.
+// The height map is deliberately excluded so geometry sampling stays exact.
+void prepare_material_images(Dictionary &r_result, int p_max_size, bool p_mipmaps);
 
 // build_worker_mesh builds ArrayMesh-backed geometry off the main thread. This
 // is safe because the mesher only touches worker-owned Image/ArrayMesh
