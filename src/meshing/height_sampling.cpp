@@ -66,6 +66,47 @@ static float red_at(const HeightImageView &p_view, int p_x, int p_y) {
 	return (float)p_view.pixels[((size_t)p_y * (size_t)p_view.width + (size_t)p_x) * (size_t)p_view.stride];
 }
 
+// Downsampling a large source map onto the block grid is the heaviest loop in
+// the mesher: a 72-cell grid over an 8192 map reads every one of its 67M bytes.
+// The accumulator width is what makes it fast. A uint64_t running sum forces the
+// compiler to zero-extend every byte to 64 bits, which blocks vectorisation
+// entirely; four independent 32-bit lanes let it fold the row with packed byte
+// adds instead. A row can hold at most 255 * 2^24 pixels before a lane wraps,
+// far past any image an Image can describe, and integer addition is
+// associative, so the split is exact — same sum, same order of magnitude fewer
+// instructions.
+static inline uint64_t sum_bytes(const uint8_t *p_row, int p_count) {
+	uint32_t a = 0, b = 0, c = 0, d = 0;
+	int x = 0;
+	for (; x + 4 <= p_count; x += 4) {
+		a += p_row[x];
+		b += p_row[x + 1];
+		c += p_row[x + 2];
+		d += p_row[x + 3];
+	}
+	for (; x < p_count; x++) {
+		a += p_row[x];
+	}
+	return (uint64_t)a + (uint64_t)b + (uint64_t)c + (uint64_t)d;
+}
+
+// Interleaved-source form (RGB/RGBA height maps): only the red byte of each
+// pixel counts, so the reads are strided and no packed path applies. The lane
+// split still keeps the accumulator 32-bit.
+static inline uint64_t sum_bytes_strided(const uint8_t *p_row, int p_count, int p_stride) {
+	uint32_t a = 0, b = 0;
+	const size_t step = (size_t)p_stride;
+	int x = 0;
+	for (; x + 2 <= p_count; x += 2) {
+		a += p_row[(size_t)x * step];
+		b += p_row[((size_t)x + 1) * step];
+	}
+	for (; x < p_count; x++) {
+		a += p_row[(size_t)x * step];
+	}
+	return (uint64_t)a + (uint64_t)b;
+}
+
 static float sample_cell_nearest(const HeightImageView &p_view, int p_i, int p_j, int p_cols, int p_rows) {
 	int px = (int)(((float)p_i + 0.5f) / (float)p_cols * (float)p_view.width);
 	int py = (int)(((float)p_j + 0.5f) / (float)p_rows * (float)p_view.height);
@@ -94,13 +135,9 @@ static float sample_cell_box_average(const HeightImageView &p_view, int p_i, int
 	for (int y = y0; y < y1; y++) {
 		const uint8_t *row = p_view.pixels + (size_t)y * (size_t)p_view.width * (size_t)p_view.stride;
 		if (p_view.stride == 1) {
-			for (int x = x0; x < x1; x++) {
-				sum += row[x];
-			}
+			sum += sum_bytes(row + x0, x1 - x0);
 		} else {
-			for (int x = x0; x < x1; x++) {
-				sum += row[(size_t)x * (size_t)p_view.stride];
-			}
+			sum += sum_bytes_strided(row + (size_t)x0 * (size_t)p_view.stride, x1 - x0, p_view.stride);
 		}
 	}
 	const uint64_t count = (uint64_t)(x1 - x0) * (uint64_t)(y1 - y0);
@@ -150,16 +187,27 @@ bool godot::resolve_cell_heights(const Ref<Image> &p_image, const CellGrid &p_gr
 	}
 
 	const float power = (float)p_height_power;
+	const bool nearest = p_filter == HeightmapMesher::FILTER_NEAREST;
 
 	r_heights.resize((size_t)p_grid.cols * (size_t)p_grid.rows);
-	parallel_for_rows(p_grid.rows, [&](int p_begin, int p_end) {
-		for (int j = p_begin; j < p_end; j++) {
-			for (int i = 0; i < p_grid.cols; i++) {
-				const float v = apply_height_power(sample_cell(view, i, j, p_grid.cols, p_grid.rows, p_filter), power);
-				const float box_h = (float)p_base_height + v * (float)p_height_scale;
-				r_heights[(size_t)j * (size_t)p_grid.cols + (size_t)i] = MAX(box_h, HEIGHT_EPSILON);
-			}
-		}
-	});
+	// Box-average reads the whole source map, so a row of cells is heavy enough
+	// to hand every core its own band; nearest touches one pixel per cell and
+	// keeps the default granularity.
+	const int min_rows = nearest ? DEFAULT_MIN_ROWS_PER_BAND : HEAVY_MIN_ROWS_PER_BAND;
+	parallel_for_rows(
+			p_grid.rows,
+			[&](int p_begin, int p_end) {
+				for (int j = p_begin; j < p_end; j++) {
+					float *out = r_heights.data() + (size_t)j * (size_t)p_grid.cols;
+					for (int i = 0; i < p_grid.cols; i++) {
+						const float raw = nearest
+								? sample_cell_nearest(view, i, j, p_grid.cols, p_grid.rows)
+								: sample_cell_box_average(view, i, j, p_grid.cols, p_grid.rows);
+						const float box_h = (float)p_base_height + apply_height_power(raw, power) * (float)p_height_scale;
+						out[i] = MAX(box_h, HEIGHT_EPSILON);
+					}
+				}
+			},
+			min_rows);
 	return true;
 }
