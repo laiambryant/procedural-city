@@ -122,6 +122,25 @@ func _main() -> void:
 	# level, and would then cost more in broadphase than it saves here.
 	print("%-28s | faces=%d" % ["  trimesh faces", faces.size()])
 
+	# Chunked geometry: what the renderer gains in culling granularity it also
+	# gains here, because each tile's collision BVH is built over its own slice
+	# instead of one grid-wide triangle soup.
+	for chunks in [2, 4]:
+		_time_best("build_chunks_%dx%d" % [chunks, chunks], func():
+			return mesher.build_array_mesh_chunks(img, MESH_SIZE, GRID, HEIGHT_SCALE, BASE_HEIGHT,
+					HeightmapMesher.FILTER_BOX_AVERAGE, HEIGHT_POWER, INSET, SEED, 0.7, 0.12,
+					CLIP_BELOW, chunks).size())
+		# Built outside the timed closure: GDScript lambdas capture by value, so a
+		# tile array assigned inside one is not visible to the next.
+		var tiles: Array = mesher.build_array_mesh_chunks(img, MESH_SIZE, GRID, HEIGHT_SCALE,
+				BASE_HEIGHT, HeightmapMesher.FILTER_BOX_AVERAGE, HEIGHT_POWER, INSET, SEED, 0.7,
+				0.12, CLIP_BELOW, chunks)
+		_time_best("  .trimesh x%d" % (chunks * chunks), func():
+			var shapes := []
+			for t in tiles:
+				shapes.append((t as ArrayMesh).create_trimesh_shape())
+			return shapes.size())
+
 	var hex: ArrayMesh = _time_best("build_hex_mesh", func():
 		return mesher.build_hex_mesh(img, MESH_SIZE, GRID, HEIGHT_SCALE, BASE_HEIGHT,
 				HeightmapMesher.FILTER_BOX_AVERAGE, 0.35, 0.45, 0.06, SEED,

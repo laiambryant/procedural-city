@@ -34,6 +34,10 @@ void ProcCityGenerator::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_sample_filter"), &ProcCityGenerator::get_sample_filter);
 	ClassDB::bind_method(D_METHOD("set_max_cells", "value"), &ProcCityGenerator::set_max_cells);
 	ClassDB::bind_method(D_METHOD("get_max_cells"), &ProcCityGenerator::get_max_cells);
+	ClassDB::bind_method(D_METHOD("set_geometry_chunks", "value"), &ProcCityGenerator::set_geometry_chunks);
+	ClassDB::bind_method(D_METHOD("get_geometry_chunks"), &ProcCityGenerator::get_geometry_chunks);
+	ClassDB::bind_method(D_METHOD("set_generate_occluders", "value"), &ProcCityGenerator::set_generate_occluders);
+	ClassDB::bind_method(D_METHOD("get_generate_occluders"), &ProcCityGenerator::get_generate_occluders);
 	ClassDB::bind_method(D_METHOD("set_hive_warp", "value"), &ProcCityGenerator::set_hive_warp);
 	ClassDB::bind_method(D_METHOD("get_hive_warp"), &ProcCityGenerator::get_hive_warp);
 	ClassDB::bind_method(D_METHOD("set_hive_jitter", "value"), &ProcCityGenerator::set_hive_jitter);
@@ -101,6 +105,9 @@ void ProcCityGenerator::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("clear_generated"), &ProcCityGenerator::clear_generated);
 	ClassDB::bind_method(D_METHOD("is_busy"), &ProcCityGenerator::is_busy);
 	ClassDB::bind_method(D_METHOD("get_cell_heights"), &ProcCityGenerator::get_cell_heights);
+	ClassDB::bind_method(D_METHOD("sample_city_height", "local_point"), &ProcCityGenerator::sample_city_height);
+	ClassDB::bind_method(D_METHOD("is_point_inside_block", "local_point"), &ProcCityGenerator::is_point_inside_block);
+	ClassDB::bind_method(D_METHOD("find_clear_point", "local_point", "max_radius"), &ProcCityGenerator::find_clear_point);
 	ClassDB::bind_method(D_METHOD("release_source_images"), &ProcCityGenerator::release_source_images);
 
 	ClassDB::bind_method(D_METHOD("_thread_body", "job"), &ProcCityGenerator::_thread_body);

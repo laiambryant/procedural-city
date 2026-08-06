@@ -77,15 +77,32 @@ void ProcCityGenerator::_retint_generated_library(GridMap *p_gridmap) {
 	}
 }
 
+// A chunked city is a plain Node3D holding one MeshInstance3D per tile, so the
+// override has to reach the children rather than the container. Recursing also
+// covers any future container shape without another special case.
+static bool override_material_recursive(Node *p_node, const Ref<Material> &p_material) {
+	GeometryInstance3D *gi = Object::cast_to<GeometryInstance3D>(p_node);
+	if (gi != nullptr) {
+		gi->set_material_override(p_material);
+		return true;
+	}
+	bool applied = false;
+	const int count = p_node->get_child_count();
+	for (int i = 0; i < count; i++) {
+		applied = override_material_recursive(p_node->get_child(i), p_material) || applied;
+	}
+	return applied;
+}
+
 void ProcCityGenerator::_apply_material_to_generated() {
 	Node *generated = _get_generated();
-	GeometryInstance3D *gi = Object::cast_to<GeometryInstance3D>(generated);
-	if (gi != nullptr) {
-		gi->set_material_override(_material);
+	if (generated == nullptr) {
 		return;
 	}
 	GridMap *gridmap = Object::cast_to<GridMap>(generated);
 	if (gridmap != nullptr) {
 		_retint_generated_library(gridmap);
+		return;
 	}
+	override_material_recursive(generated, _material);
 }

@@ -291,7 +291,20 @@ The generation pipeline is built for large grids and large maps:
   gRPC. Bundle responses are decoded map-by-map, so the client does not retain
   a second full response alongside all decoded images.
 - **Height images are sampled in place** with their native pixel stride, with
-  no full-image format conversion or extracted red-channel copy.
+  no full-image format conversion or extracted red-channel copy. The
+  box-average downsample — the heaviest loop in the pipeline, since it reads
+  every byte of the source map — accumulates in 32-bit lanes so the compiler can
+  fold a row with packed byte adds, and splits one row per thread rather than
+  the 16-row granularity the cheap emission passes want.
+- **Geometry can be chunked** (`geometry_chunks`, ArrayMesh backend): the city
+  is emitted as an N×N grid of `MeshInstance3D` tiles over disjoint cell rects,
+  so the renderer frustum- and occlusion-culls per tile instead of submitting
+  one grid-wide mesh every frame, and each tile's collision BVH is built over
+  its own slice. Neighbour culling still reads the whole height grid, so the
+  chunks are triangle-for-triangle what the single mesh was (the ground plane
+  aside, which is laid per tile on purpose). On a 72×72 grid over an 8192 map,
+  building the collision shapes costs 30.4 ms as one mesh, 23.5 ms at 2×2 and
+  19.2 ms at 4×4; mesh build time is unchanged.
 - **Hidden geometry can be clipped before allocation**: set
   `clip_below_height` to the world-space height of an opaque ground or street
   plane. ArrayMesh roofs below it are omitted and crossing walls are clamped to
@@ -304,8 +317,35 @@ The generation pipeline is built for large grids and large maps:
   geometry remain valid.
 
 `demo/tests/bench_meshers.gd` times the mesher backends headless;
-`demo/tests/multimesh_parity.gd` pins the multimesh buffer layout;
-`demo/tests/hive_parity.gd` pins `HiveGenCore`'s RNG stream by digest.
+`demo/tests/bench_hotpath.gd` times the same path at the resolution a shipping
+game uses (8192 source map onto a 72×72 grid) and splits the collision cost into
+readback vs BVH build; `demo/tests/multimesh_parity.gd` pins the multimesh
+buffer layout; `demo/tests/hive_parity.gd` pins `HiveGenCore`'s RNG stream by
+digest; `demo/tests/chunked_geometry.gd` pins chunked output against the single
+mesh and covers the query API.
+
+## Culling and gameplay queries
+
+| Property | Meaning |
+| --- | --- |
+| `geometry_chunks` | `1` (default) keeps one grid-wide `MeshInstance3D` named `GeneratedCity`. Above that, `GeneratedCity` becomes a container of `Chunk_<n>` tiles, each with its own mesh, AABB and collision body. ArrayMesh backend only. |
+| `generate_occluders` | Adds an `OccluderInstance3D` per tile, built from that tile's own triangles (conservative by construction). Needs occlusion culling enabled in project settings to do anything. |
+
+Three queries read the cached cell heights, so they cost a grid lookup rather
+than an image sample and keep working after `release_source_images()`. All take
+points in the generator's local space:
+
+```gdscript
+var top := city.sample_city_height(point)          # height field value, 0 outside
+var solid := city.is_point_inside_block(point)     # honours clip_below_height + block_inset
+var spawn := city.find_clear_point(point, 40.0)    # nearest cell no taller than clip_below_height
+```
+
+`is_point_inside_block` reports false for cells clipped away by
+`clip_below_height` (they contribute no geometry) and for the streets that
+`block_inset` opens between freestanding towers. `find_clear_point` searches
+outward in rings and returns the input unchanged when nothing within
+`max_radius` is clear.
 
 ## Geometry notes
 

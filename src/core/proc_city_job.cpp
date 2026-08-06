@@ -6,9 +6,11 @@
 #include "meshing/heightmap_mesher.h"
 #include "meshing/height_sampling.h"
 
+#include <godot_cpp/classes/array_mesh.hpp>
 #include <godot_cpp/classes/file_access.hpp>
 #include <godot_cpp/classes/time.hpp>
 #include <godot_cpp/variant/packed_float32_array.hpp>
+#include <godot_cpp/variant/typed_array.hpp>
 
 #include <iterator>
 #include <vector>
@@ -215,26 +217,51 @@ static Dictionary cell_height_result(const Dictionary &p_job, const std::vector<
 	return result;
 }
 
-static Ref<ArrayMesh> build_job_mesh(const Dictionary &p_job, const Ref<Image> &p_height, int p_mode, Dictionary &r_result) {
+// build_job_meshes returns every mesh the job's build mode produces. Hex is
+// always one mesh; blocks honour geometry_chunks, so a chunked city has its
+// tiles built on the worker exactly like the single mesh they replace.
+static TypedArray<ArrayMesh> build_job_meshes(const Dictionary &p_job, const Ref<Image> &p_height, int p_mode,
+											  Dictionary &r_result) {
 	Ref<HeightmapMesher> mesher;
 	mesher.instantiate();
+	TypedArray<ArrayMesh> out;
 	if (p_mode == ProcCityGenerator::BUILD_HEX) {
-		return mesher->build_hex_mesh(p_height, p_job["mesh_size"], p_job["grid_vertices"],
+		Ref<ArrayMesh> hex = mesher->build_hex_mesh(p_height, p_job["mesh_size"], p_job["grid_vertices"],
 									  p_job["height_scale"], p_job["base_height"], p_job["sample_filter"],
 									  p_job["hive_warp"], p_job["hive_jitter"], p_job["hive_gap"], (int64_t)p_job["seed"],
 									  p_job["hive_flat_rect"], p_job["hive_rim_boost"], p_job["hive_rim_falloff"],
 									  p_job["height_power"], p_job["ao_strength"], p_job["color_variation"], p_job["hive_floor"]);
+		if (hex.is_valid()) {
+			out.push_back(hex);
+		}
+		return out;
 	}
+
 	std::vector<float> heights;
-	Ref<ArrayMesh> mesh = mesher->build_array_mesh_with_heights(
-			p_height, p_job["mesh_size"], p_job["grid_vertices"],
-			p_job["height_scale"], p_job["base_height"], p_job["sample_filter"],
-			p_job["height_power"], p_job["block_inset"], (int64_t)p_job["seed"],
-			p_job["ao_strength"], p_job["color_variation"], p_job["clip_below_height"], heights);
-	if (mesh.is_valid()) {
+	const int chunks = (int)p_job.get("geometry_chunks", 1);
+	if (chunks > 1) {
+		const std::vector<Ref<ArrayMesh>> meshes = mesher->build_array_mesh_chunks(
+				p_height, p_job["mesh_size"], p_job["grid_vertices"],
+				p_job["height_scale"], p_job["base_height"], p_job["sample_filter"],
+				p_job["height_power"], p_job["block_inset"], (int64_t)p_job["seed"],
+				p_job["ao_strength"], p_job["color_variation"], p_job["clip_below_height"], chunks, heights);
+		for (const Ref<ArrayMesh> &mesh : meshes) {
+			out.push_back(mesh);
+		}
+	} else {
+		Ref<ArrayMesh> mesh = mesher->build_array_mesh_with_heights(
+				p_height, p_job["mesh_size"], p_job["grid_vertices"],
+				p_job["height_scale"], p_job["base_height"], p_job["sample_filter"],
+				p_job["height_power"], p_job["block_inset"], (int64_t)p_job["seed"],
+				p_job["ao_strength"], p_job["color_variation"], p_job["clip_below_height"], heights);
+		if (mesh.is_valid()) {
+			out.push_back(mesh);
+		}
+	}
+	if (out.size() > 0) {
 		r_result["cell_heights"] = cell_height_result(p_job, heights);
 	}
-	return mesh;
+	return out;
 }
 
 bool godot::build_worker_mesh(const Dictionary &p_job, Dictionary &r_result) {
@@ -246,10 +273,10 @@ bool godot::build_worker_mesh(const Dictionary &p_job, Dictionary &r_result) {
 		return true;
 	}
 
-	Ref<ArrayMesh> mesh = build_job_mesh(p_job, r_result["height_image"], mode, r_result);
-	if (mesh.is_null()) {
+	const TypedArray<ArrayMesh> meshes = build_job_meshes(p_job, r_result["height_image"], mode, r_result);
+	if (meshes.is_empty()) {
 		return false;
 	}
-	r_result["geometry_mesh"] = mesh;
+	r_result["geometry_meshes"] = meshes;
 	return true;
 }

@@ -7,9 +7,11 @@
 #include <godot_cpp/classes/node3d.hpp>
 #include <godot_cpp/classes/thread.hpp>
 #include <godot_cpp/core/binder_common.hpp>
+#include <godot_cpp/classes/array_mesh.hpp>
 #include <godot_cpp/variant/callable.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/rect2.hpp>
+#include <godot_cpp/variant/typed_array.hpp>
 #include <godot_cpp/variant/string.hpp>
 #include <godot_cpp/variant/vector2.hpp>
 #include <godot_cpp/variant/vector2i.hpp>
@@ -18,6 +20,7 @@
 #include <vector>
 
 #include "cli/goplacementx_params.h"
+#include "meshing/heightmap_mesher.h"
 
 namespace godot {
 
@@ -93,6 +96,15 @@ private:
 	int build_mode = BUILD_ARRAY_MESH;
 	int sample_filter = 1;
 	int max_cells = 8192;
+	// ArrayMesh-only. 1 keeps the single grid-wide mesh. Above that the city is
+	// split into geometry_chunks x geometry_chunks MeshInstance3D tiles, which
+	// the renderer can frustum- and occlusion-cull independently and which each
+	// carry their own (smaller, cheaper to build) collision shape.
+	int geometry_chunks = 1;
+	// Emits an OccluderInstance3D per chunk from the block silhouettes, so
+	// Godot's occlusion culling can hide buildings standing behind buildings.
+	// Needs occlusion culling enabled in project settings to have any effect.
+	bool generate_occluders = false;
 	// Hex hive backend (BUILD_HEX): lattice warp, per-cell irregularity and
 	// visible cell separation. Seeded from the resolved generation seed.
 	double hive_warp = 0.35;
@@ -190,6 +202,8 @@ private:
 	Node3D *_make_hex_node();
 	Node3D *_make_blocks_node();
 	Node3D *_make_gridmap_node();
+	Node3D *_make_chunk_container(const std::vector<Ref<ArrayMesh>> &p_meshes);
+	Node3D *_install_worker_meshes(const TypedArray<ArrayMesh> &p_meshes);
 	bool _resolve_gridmap_library(const Vector3 &p_cell_size, Ref<MeshLibrary> &r_library, int &r_item);
 	// Swaps p_container in as the GeneratedCity child (removes the old one,
 	// handles editor ownership and the material override). Main thread only.
@@ -253,6 +267,10 @@ public:
 	int get_sample_filter() const { return sample_filter; }
 	void set_max_cells(int p_v) { max_cells = p_v; }
 	int get_max_cells() const { return max_cells; }
+	void set_geometry_chunks(int p_v) { geometry_chunks = CLAMP(p_v, 1, MAX_GEOMETRY_CHUNKS); }
+	int get_geometry_chunks() const { return geometry_chunks; }
+	void set_generate_occluders(bool p_v) { generate_occluders = p_v; }
+	bool get_generate_occluders() const { return generate_occluders; }
 	void set_hive_warp(double p_v) { hive_warp = p_v; }
 	double get_hive_warp() const { return hive_warp; }
 	void set_hive_jitter(double p_v) { hive_jitter = p_v; }
@@ -320,6 +338,25 @@ public:
 	Ref<Image> get_height_image() const { return _height_image; }
 
 	Dictionary get_cell_heights() const;
+
+	// Gameplay queries over the resolved block field, in the generator's own
+	// local space. They read the same cached cell heights get_cell_heights()
+	// returns, so they cost a grid lookup rather than an image sample and stay
+	// correct after release_source_images().
+	//
+	// sample_city_height: the resolved height field under a point, in mesh-local
+	//   units (0 outside the field). This is the raw grid value, whether or not
+	//   the cell survived clip_below_height.
+	// is_point_inside_block: whether a point is inside a block that actually got
+	//   built — cells at or below clip_below_height contribute no geometry, and
+	//   block_inset leaves streets between freestanding towers, so both read as
+	//   clear.
+	// find_clear_point: nearest point, searched outward up to max_radius, whose
+	//   block does not rise above clip_below_height — the spawn-relocation query.
+	double sample_city_height(const Vector3 &p_local_point) const;
+	bool is_point_inside_block(const Vector3 &p_local_point) const;
+	Vector3 find_clear_point(const Vector3 &p_local_point, double p_max_radius) const;
+
 	void release_source_images();
 
 	void generate_displacement();

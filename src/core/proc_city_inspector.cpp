@@ -27,6 +27,10 @@ void ProcCityGenerator::_bind_inspector_surface() {
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "max_cells", PROPERTY_HINT_RANGE, "1,1048576,1"), "set_max_cells", "get_max_cells");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "persist_in_scene"), "set_persist_in_scene", "get_persist_in_scene");
 
+	ADD_GROUP("Culling", "");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "geometry_chunks", PROPERTY_HINT_RANGE, "1,16,1"), "set_geometry_chunks", "get_geometry_chunks");
+	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "generate_occluders"), "set_generate_occluders", "get_generate_occluders");
+
 	ADD_GROUP("Collision", "");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "generate_collision"), "set_generate_collision", "get_generate_collision");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "collision_layer", PROPERTY_HINT_LAYERS_3D_PHYSICS), "set_collision_layer", "get_collision_layer");

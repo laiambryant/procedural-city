@@ -90,6 +90,7 @@ Dictionary ProcCityGenerator::_snapshot_job(int p_stages) const {
 	job["use_gpu_server"] = use_gpu_server;
 	job["keep_intermediate_png"] = keep_intermediate_png;
 	job["build_mode"] = build_mode;
+	job["geometry_chunks"] = geometry_chunks;
 	job["mesh_size"] = mesh_size;
 	job["grid_vertices"] = grid_vertices;
 	job["height_scale"] = height_scale;
