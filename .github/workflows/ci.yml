@@ -7,6 +7,9 @@ on:
 
 env:
   SCONS_CACHE: ${{ github.workspace }}/.scons-cache
+  # Pinned so the check is reproducible: clang-format reflows code differently
+  # between major versions, and `make format-check` has to agree with CI.
+  CLANG_FORMAT_VERSION: 20.1.7
 
 jobs:
   format:
@@ -14,10 +17,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install clang-format
+        run: pip install "clang-format==${{ env.CLANG_FORMAT_VERSION }}"
+
+      # Mirrors `make format-check`: src/rpc_gen is protoc output and is skipped.
       - name: Check formatting
         run: |
-          shopt -s globstar
-          clang-format --dry-run --Werror src/**/*.cpp src/**/*.h
+          find src -path src/rpc_gen -prune -o \( -name '*.cpp' -o -name '*.h' \) -print | xargs clang-format --dry-run --Werror
 
   build:
     name: Build (${{ matrix.platform }}, ${{ matrix.target }})
@@ -36,9 +48,15 @@ jobs:
             target: template_release
             runner: macos-latest
     steps:
+      # cppdisplacementx is a private sibling repository, and the default
+      # GITHUB_TOKEN is scoped to this repo alone, so it cannot clone it. Add a
+      # SUBMODULE_TOKEN secret (a PAT with read access to both repos) to check
+      # submodules out; without it, checkout falls back to the default token,
+      # which is enough only while every submodule is public.
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+          token: ${{ secrets.SUBMODULE_TOKEN || github.token }}
 
       - name: Set up Python
         uses: actions/setup-python@v5

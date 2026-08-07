@@ -331,14 +331,27 @@ void godot::proc_city_rpc_clients_shutdown() {
 
 using namespace godot;
 
+// ProcCityRpcClient holds a unique_ptr<RpcStubs>, so its destructor needs the
+// complete type even in a build that never dials anything. There are no stubs
+// without gRPC, so an empty one is the whole definition.
+struct godot::RpcStubs {};
+
 ProcCityRpcClient::ProcCityRpcClient(CliKind p_kind) :
 		kind(p_kind) {}
 ProcCityRpcClient::~ProcCityRpcClient() {}
 void ProcCityRpcClient::close_locked() {}
-bool ProcCityRpcClient::handshake_locked(int &) { return false; }
-bool ProcCityRpcClient::dial_locked(int) { return false; }
-bool ProcCityRpcClient::ensure_started(const String &) { return false; }
-bool ProcCityRpcClient::is_running() const { return false; }
+bool ProcCityRpcClient::handshake_locked(int &) {
+	return false;
+}
+bool ProcCityRpcClient::dial_locked(int) {
+	return false;
+}
+bool ProcCityRpcClient::ensure_started(const String &) {
+	return false;
+}
+bool ProcCityRpcClient::is_running() const {
+	return false;
+}
 void ProcCityRpcClient::shutdown() {}
 Dictionary ProcCityRpcClient::run_generate(const String &, int64_t, const String &, const Ref<GoplacementxParams> &) const {
 	Dictionary out;
@@ -358,7 +371,9 @@ Dictionary ProcCityRpcClient::randomize(int64_t) const {
 	out["output"] = "gRPC support not built into this binary";
 	return out;
 }
-String ProcCityRpcClient::version() const { return String(); }
+String ProcCityRpcClient::version() const {
+	return String();
+}
 
 static ProcCityRpcClient *g_clients[2] = { nullptr, nullptr };
 

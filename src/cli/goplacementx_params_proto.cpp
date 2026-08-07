@@ -1,5 +1,7 @@
 #include "cli/goplacementx_params_proto.h"
 
+#ifdef PROC_CITY_HAVE_GRPC
+
 #include "cli/goplacementx_param_names.h"
 
 #include <godot_cpp/variant/array.hpp>
@@ -148,3 +150,5 @@ Dictionary godot::proto_params_to_dict(const displacement::v1::Params &p_params)
 
 	return d;
 }
+
+#endif // PROC_CITY_HAVE_GRPC

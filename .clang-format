@@ -4,6 +4,12 @@ BasedOnStyle: LLVM
 Standard: c++17
 
 AccessModifierOffset: -4
+AlignAfterOpenBracket: DontAlign
+AlignOperands: DontAlign
+AlignTrailingComments:
+  Kind: Never
+  OverEmptyLines: 0
+AllowAllParametersOfDeclarationOnNextLine: false
 AllowShortFunctionsOnASingleLine: Inline
 BreakConstructorInitializers: AfterColon
 ColumnLimit: 0
@@ -23,7 +29,7 @@ TabWidth: 4
 UseTab: Always
 
 IncludeCategories:
-  - Regex: '^"(core|meshing|cli|material|hive)/'
+  - Regex: '^"(core|meshing|native|cli|material|editor|hive)/'
     Priority: 1
   - Regex: '^"'
     Priority: 2
