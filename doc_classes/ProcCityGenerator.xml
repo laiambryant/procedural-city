@@ -1,0 +1,331 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="ProcCityGenerator" inherits="Node3D" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../godot-cpp/gdextension/class.xsd">
+	<brief_description>
+		Generates a procedural city: a displacement field, extruded block geometry built from it, and a matching material.
+	</brief_description>
+	<description>
+		Renders a grayscale height field, extrudes one block per grid cell out of it, and applies generated albedo and normal maps to the result. Everything the node produces is installed under a single child node named [code]GeneratedCity[/code].
+		The field is produced by one of four interchangeable backends, chosen with [member generation_mode]. The two native backends run inside this extension and are the only ones that keep working in an exported game; the legacy ones drive the standalone command-line tools.
+		Generation runs on a worker thread. Watch [signal generation_finished] and [signal generation_failed] rather than assuming a call has completed when it returns.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="build_geometry">
+			<return type="void" />
+			<description>
+				Rebuilds only the geometry from the height field already in memory. Fails if no displacement has been generated yet.
+			</description>
+		</method>
+		<method name="clear_generated">
+			<return type="void" />
+			<description>
+				Removes the generated child node and everything under it. The cached height field and material images are kept, so geometry can be rebuilt without re-rendering.
+			</description>
+		</method>
+		<method name="externalize_generated_resources">
+			<return type="void" />
+			<description>
+				Writes the generated city's meshes, collision shapes, occluders and material to [member external_resource_dir] as binary [code].res[/code] files and repoints the scene at them, so a persisted city costs the scene a handful of references instead of hundreds of megabytes of embedded base64.
+				Runs automatically when a city is persisted into the edited scene. Call it directly to bake a city generated at runtime to disk.
+			</description>
+		</method>
+		<method name="find_clear_point" qualifiers="const">
+			<return type="Vector3" />
+			<param index="0" name="local_point" type="Vector3" />
+			<param index="1" name="max_radius" type="float" />
+			<description>
+				Nearest point to [param local_point], searched outward up to [param max_radius], whose block does not rise above [member clip_below_height]. The spawn-relocation query: use it to move something out of a building.
+			</description>
+		</method>
+		<method name="generate_all">
+			<return type="void" />
+			<description>
+				Runs the whole pipeline with a fresh seed: displacement, geometry, material, and application of that material.
+			</description>
+		</method>
+		<method name="generate_displacement">
+			<return type="void" />
+			<description>
+				Renders a new height field with a fresh seed and rebuilds the geometry from it.
+			</description>
+		</method>
+		<method name="generate_material">
+			<return type="void" />
+			<description>
+				Renders the albedo and normal maps for the current height field and applies them. Requires a previous displacement pass.
+			</description>
+		</method>
+		<method name="get_cell_heights" qualifiers="const">
+			<return type="Dictionary" />
+			<description>
+				The resolved block-height grid, as [code]columns[/code], [code]rows[/code], [code]cell_size[/code], [code]origin[/code] and a [PackedFloat32Array] of [code]heights[/code]. Backs the gameplay queries, so reading it costs a grid lookup rather than an image sample.
+			</description>
+		</method>
+		<method name="get_last_generation_mode_used" qualifiers="const">
+			<return type="int" />
+			<description>
+				Which backend actually served the last generation. This can differ from [member generation_mode]: a GPU request falls back to a CPU one when no usable device is present.
+			</description>
+		</method>
+		<method name="is_busy" qualifiers="const">
+			<return type="bool" />
+			<description>
+				Whether a generation is currently running on the worker thread. Starting another one while this is true fails with a [code]busy[/code] stage.
+			</description>
+		</method>
+		<method name="is_point_inside_block" qualifiers="const">
+			<return type="bool" />
+			<param index="0" name="local_point" type="Vector3" />
+			<description>
+				Whether the point falls inside a block that was actually built. Cells at or below [member clip_below_height] contribute no geometry, and [member block_inset] leaves streets between towers, so both read as clear.
+			</description>
+		</method>
+		<method name="randomize_palette">
+			<return type="void" />
+			<description>
+				Replaces the gradient on [member params] with a fresh four-stop ramp.
+			</description>
+		</method>
+		<method name="release_source_images">
+			<return type="void" />
+			<description>
+				Drops the cached height and material images. The installed city and the gameplay queries keep working; only regenerating the material or rebuilding geometry would need them back.
+			</description>
+		</method>
+		<method name="sample_city_height" qualifiers="const">
+			<return type="float" />
+			<param index="0" name="local_point" type="Vector3" />
+			<description>
+				The resolved height under a point, in mesh-local units, or 0 outside the field. This is the raw grid value whether or not the cell survived [member clip_below_height].
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="ao_strength" type="float" setter="set_ao_strength" getter="get_ao_strength">
+			Strength of the baked ambient occlusion written into vertex colours, from 0 (off) to 1. Darkens block sides towards their base; tops stay flat.
+		</member>
+		<member name="auto_download_binary" type="bool" setter="set_auto_download_binary" getter="get_auto_download_binary">
+			Whether a missing legacy command-line tool may be downloaded from its GitHub releases and cached under [code]user://[/code]. Ignored by the native backends, which need no executable.
+		</member>
+		<member name="base_height" type="float" setter="set_base_height" getter="get_base_height">
+			Height added to every block, in metres. Raises the whole skyline off the ground plane without changing its relief.
+		</member>
+		<member name="binary_path_override" type="String" setter="set_binary_path_override" getter="get_binary_path_override">
+			Explicit path to the legacy command-line tool, taking priority over the bundled and downloaded copies. Ignored by the native backends.
+		</member>
+		<member name="block_inset" type="float" setter="set_block_inset" getter="get_block_inset">
+			Fraction of a cell each block footprint shrinks by, per side. Above 0 the merged grid becomes freestanding buildings with streets between them, and ArrayMesh adds a ground plane underneath.
+		</member>
+		<member name="build_mode" type="int" setter="set_build_mode" getter="get_build_mode">
+			Which geometry backend builds the city. ArrayMesh is one continuous mesh and the only one that drapes the material as a single image; MultiMesh is GPU-instanced; CSG welds real boolean boxes and is expensive; HexHive lays a hexagonal lattice; GridMap emits an editable [GridMap] node.
+		</member>
+		<member name="clip_below_height" type="float" setter="set_clip_below_height" getter="get_clip_below_height">
+			ArrayMesh only. Cells at or below this mesh-local height are omitted, along with the wall portions hidden beneath it. Carves open ground out of the field; 0 builds everything.
+		</member>
+		<member name="collision_layer" type="int" setter="set_collision_layer" getter="get_collision_layer">
+			Physics layers the generated collision bodies are placed on.
+		</member>
+		<member name="color_variation" type="float" setter="set_color_variation" getter="get_color_variation">
+			Per-cell luminance jitter written into vertex colours, from 0 (uniform) to 1. Breaks up the flatness of a single shared material.
+		</member>
+		<member name="external_resource_dir" type="String" setter="set_external_resource_dir" getter="get_external_resource_dir">
+			Directory the persisted city's heavy sub-resources — meshes, collision shapes, occluders, the material — are written to as binary [code].res[/code] files, so the scene references them instead of embedding them.
+			Leave it empty to embed everything in the scene text instead. That is only reasonable for tiny grids: a full city embeds as hundreds of megabytes of base64 and makes every scene save and load crawl.
+		</member>
+		<member name="generate_collision" type="bool" setter="set_generate_collision" getter="get_generate_collision">
+			Whether to attach collision to the generated geometry. ArrayMesh and MultiMesh get a [StaticBody3D] with trimesh shapes, CSG uses its own built-in collision, and GridMap collides through the shapes in its mesh library.
+		</member>
+		<member name="generate_occluders" type="bool" setter="set_generate_occluders" getter="get_generate_occluders">
+			Whether to emit an [OccluderInstance3D] per chunk from the block silhouettes, so buildings can hide the buildings behind them. Has no effect unless occlusion culling is enabled in the project settings.
+		</member>
+		<member name="generation_mode" type="int" setter="set_generation_mode" getter="get_generation_mode">
+			Which backend renders the displacement field.
+			[b]GPU[/b] and [b]CPU[/b] run the engine core inside this extension: no external process, so they are the only modes that keep working in an exported game, and the only ones available on platforms that forbid spawning executables. GPU dispatches a compute shader on a local rendering device and falls back to CPU when the active renderer has none; CPU composites on worker threads with SIMD fast paths and produces byte-identical output.
+			[b]GPU (Legacy)[/b] and [b]CPU (Legacy)[/b] shell out to the standalone gpudisplacementx and godisplacementx tools. They stay for reproducing output made before the native backends existed; they need the executable present and cannot run inside a packaged game.
+		</member>
+		<member name="geometry_chunks" type="int" setter="set_geometry_chunks" getter="get_geometry_chunks">
+			ArrayMesh only. Splits the city into this many tiles per axis, each its own mesh instance with its own collision shape, so the renderer can frustum- and occlusion-cull them independently. 1 keeps a single grid-wide mesh.
+		</member>
+		<member name="grid_vertices" type="Vector2i" setter="set_grid_vertices" getter="get_grid_vertices">
+			Resolution of the block grid, in vertices. One box is built per cell, so the city has (x-1) by (y-1) blocks.
+		</member>
+		<member name="gridmap_fill_columns" type="bool" setter="set_gridmap_fill_columns" getter="get_gridmap_fill_columns">
+			GridMap only. Whether each column is filled from the ground up. With this off only the top cell of every column is placed, which is far cheaper but hollow.
+		</member>
+		<member name="gridmap_item_id" type="int" setter="set_gridmap_item_id" getter="get_gridmap_item_id">
+			GridMap only. Which item of [member gridmap_mesh_library] to place. Ignored unless a library is supplied.
+		</member>
+		<member name="gridmap_level_height" type="float" setter="set_gridmap_level_height" getter="get_gridmap_level_height">
+			GridMap only. Height of one stacked cell, in metres. 0 picks one automatically, as close to cubic as the footprint allows.
+		</member>
+		<member name="gridmap_mesh_library" type="MeshLibrary" setter="set_gridmap_mesh_library" getter="get_gridmap_mesh_library">
+			GridMap only. Replaces the generated block item with one from this library, which keeps its own item sizes, shapes and materials. A supplied library is never modified.
+		</member>
+		<member name="height_power" type="float" setter="set_height_power" getter="get_height_power">
+			Exponent applied to the sampled height before scaling. Above 1 thins the city into a few tall towers; below 1 raises the low blocks; 1 is linear.
+		</member>
+		<member name="height_scale" type="float" setter="set_height_scale" getter="get_height_scale">
+			Height of a fully white cell, in metres. The field is sampled as 0 to 1 and multiplied by this.
+		</member>
+		<member name="hive_flat_rect" type="Rect2" setter="set_hive_flat_rect" getter="get_hive_flat_rect">
+			HexHive only. Mesh-local XZ rectangle that stays flat. Columns outside it rise by up to [member hive_rim_boost]. An empty rectangle disables the rim.
+		</member>
+		<member name="hive_floor" type="bool" setter="set_hive_floor" getter="get_hive_floor">
+			HexHive only. Whether to close the lattice with a floor underneath.
+		</member>
+		<member name="hive_gap" type="float" setter="set_hive_gap" getter="get_hive_gap">
+			HexHive only. Visible separation between cells, as a fraction of cell size. Above 0 the hexagons read as distinct tiles rather than a continuous surface.
+		</member>
+		<member name="hive_jitter" type="float" setter="set_hive_jitter" getter="get_hive_jitter">
+			HexHive only. Per-cell irregularity, from 0 (uniform) to 1. Seeded from the generation seed, so it is reproducible.
+		</member>
+		<member name="hive_rim_boost" type="float" setter="set_hive_rim_boost" getter="get_hive_rim_boost">
+			HexHive only. Extra height, in metres, that columns outside [member hive_flat_rect] rise to. 0 disables the rim.
+		</member>
+		<member name="hive_rim_falloff" type="float" setter="set_hive_rim_falloff" getter="get_hive_rim_falloff">
+			HexHive only. Distance in metres over which the rim reaches its full boost.
+		</member>
+		<member name="hive_warp" type="float" setter="set_hive_warp" getter="get_hive_warp">
+			HexHive only. How far the hexagonal lattice is warped out of a regular grid, from 0 to 1.
+		</member>
+		<member name="keep_intermediate_png" type="bool" setter="set_keep_intermediate_png" getter="get_keep_intermediate_png">
+			Whether to keep the map files a legacy backend wrote, instead of deleting them once loaded. Useful for inspecting what the tool produced. The native backends never write files at all, so this has no effect on them.
+		</member>
+		<member name="material_max_size" type="int" setter="set_material_max_size" getter="get_material_max_size">
+			Largest edge, in pixels, the material maps are uploaded at. Larger maps are downsized. The height map is deliberately excluded so geometry stays exact; 0 uploads everything at its authored resolution.
+		</member>
+		<member name="material_mode" type="int" setter="set_material_mode" getter="get_material_mode">
+			Whether the generated material is a plain standard material or one using a packed occlusion/roughness/metallic texture.
+		</member>
+		<member name="max_cells" type="int" setter="set_max_cells" getter="get_max_cells">
+			Safety cap on the number of cells a build may produce. Grids above it refuse to build rather than freezing the editor.
+		</member>
+		<member name="mesh_size" type="Vector2" setter="set_mesh_size" getter="get_mesh_size">
+			Footprint of the whole city in world metres. Together with [member grid_vertices] this fixes the size of one block.
+		</member>
+		<member name="metallic" type="float" setter="set_metallic" getter="get_metallic">
+			Scalar metallic value of the generated material.
+		</member>
+		<member name="normal_strength" type="float" setter="set_normal_strength" getter="get_normal_strength">
+			Strength of the generated normal map on the material. 0 flattens it.
+		</member>
+		<member name="output_dir" type="String" setter="set_output_dir" getter="get_output_dir">
+			Directory a legacy backend writes its intermediate maps to. Empty uses the user cache directory. The native backends keep every map in memory and ignore this.
+		</member>
+		<member name="params" type="GoplacementxParams" setter="set_params" getter="get_params">
+			The displacement generator settings — resolution, seed, layer mix and palette. Shared by every backend: the same parameters produce the same field whichever one renders it.
+		</member>
+		<member name="persist_in_scene" type="bool" setter="set_persist_in_scene" getter="get_persist_in_scene">
+			Whether the generated city is owned by the edited scene and therefore saved with it. With this off the city exists only until the scene is reloaded, and has to be regenerated at runtime.
+		</member>
+		<member name="roughness" type="float" setter="set_roughness" getter="get_roughness">
+			Scalar roughness of the generated material, used where no roughness map is routed in.
+		</member>
+		<member name="sample_filter" type="int" setter="set_sample_filter" getter="get_sample_filter">
+			How a cell's height is read out of the field. Nearest takes the single texel under the cell centre; BoxAverage averages the cell's whole footprint, which is calmer when the grid is much coarser than the map.
+		</member>
+		<member name="texture_filter" type="int" setter="set_texture_filter" getter="get_texture_filter">
+			Sampling of the generated maps on the finished material. The mipmapped option also decides whether mipmaps are generated at all.
+		</member>
+		<member name="texture_mode" type="int" setter="set_texture_mode" getter="get_texture_mode">
+			How generated maps are routed onto the material. Single uses one colour map as albedo with scalar roughness; Shared reuses one map as albedo, roughness and height; Channels renders four independent maps into red, green, blue and roughness.
+		</member>
+		<member name="texture_repeat" type="bool" setter="set_texture_repeat" getter="get_texture_repeat">
+			Whether the material's textures repeat past the UV range. Turn it off with a [member uv_scale] of 1 to keep a single stretched copy.
+		</member>
+		<member name="use_gpu_server" type="bool" setter="set_use_gpu_server" getter="get_use_gpu_server">
+			Legacy GPU mode only. Keeps one gpudisplacementx server process alive for the session so its device bring-up is paid once instead of once per generation. The native GPU backend already reuses its device and ignores this.
+		</member>
+		<member name="uv_scale" type="Vector2" setter="set_uv_scale" getter="get_uv_scale">
+			How many times the material tiles across the city. 1 drapes a single copy over the whole footprint.
+		</member>
+	</members>
+	<signals>
+		<signal name="all_finished">
+			<description>
+				Emitted once a run has finished every stage it was asked for, successfully or not.
+			</description>
+		</signal>
+		<signal name="generation_failed">
+			<param index="0" name="stage" type="String" />
+			<param index="1" name="message" type="String" />
+			<description>
+				Emitted when a stage could not complete. [param stage] is one of [code]setup[/code], [code]busy[/code], [code]displacement[/code], [code]geometry[/code] or [code]material[/code].
+			</description>
+		</signal>
+		<signal name="generation_finished">
+			<param index="0" name="stage" type="String" />
+			<param index="1" name="path" type="String" />
+			<description>
+				Emitted as each stage completes. [param path] carries the map file a legacy backend wrote, and is empty for the native backends and for the geometry stage.
+			</description>
+		</signal>
+		<signal name="generation_progress">
+			<param index="0" name="stage" type="String" />
+			<param index="1" name="ratio" type="float" />
+			<description>
+				Coarse progress through a run, from 0 to 1.
+			</description>
+		</signal>
+		<signal name="generation_started">
+			<param index="0" name="stage" type="String" />
+			<description>
+				Emitted when a run begins. [param stage] collapses to [code]displacement[/code], [code]material[/code] or [code]all[/code].
+			</description>
+		</signal>
+	</signals>
+	<constants>
+		<constant name="GEN_GPU_NATIVE" value="0" enum="GenerationMode">
+			Renders the field with a compute shader on a local rendering device, inside this extension. Falls back to [constant GEN_CPU_NATIVE] when the active renderer provides no rendering device.
+		</constant>
+		<constant name="GEN_CPU_NATIVE" value="1" enum="GenerationMode">
+			Renders the field on worker threads inside this extension. Byte-identical to [constant GEN_GPU_NATIVE] for the same seed.
+		</constant>
+		<constant name="GEN_GPU_LEGACY" value="2" enum="GenerationMode">
+			Renders the field by running the standalone gpudisplacementx tool. Falls back to [constant GEN_CPU_LEGACY] when no binary or no GPU adapter is available.
+		</constant>
+		<constant name="GEN_CPU_LEGACY" value="3" enum="GenerationMode">
+			Renders the field by running the standalone godisplacementx tool.
+		</constant>
+		<constant name="BUILD_ARRAY_MESH" value="0" enum="BuildMode">
+			One continuous mesh, and the only backend that drapes the material as a single image across the city.
+		</constant>
+		<constant name="BUILD_MULTIMESH" value="1" enum="BuildMode">
+			GPU-instanced boxes. The material tiles per box.
+		</constant>
+		<constant name="BUILD_CSG" value="2" enum="BuildMode">
+			Literal [CSGBox3D] nodes welded into a boolean solid. Expensive: the union rebuilds on every change.
+		</constant>
+		<constant name="BUILD_HEX" value="3" enum="BuildMode">
+			A hexagonal lattice driven by the hive settings.
+		</constant>
+		<constant name="BUILD_GRIDMAP" value="4" enum="BuildMode">
+			A real [GridMap] node that can be edited by hand after generation.
+		</constant>
+		<constant name="MATERIAL_STANDARD" value="0" enum="MaterialMode">
+			A [StandardMaterial3D] with separate maps.
+		</constant>
+		<constant name="MATERIAL_ORM" value="1" enum="MaterialMode">
+			A material using a packed occlusion/roughness/metallic texture.
+		</constant>
+		<constant name="TEX_SINGLE" value="0" enum="TextureMode">
+			One colour map becomes the albedo; roughness and metallic stay scalar.
+		</constant>
+		<constant name="TEX_SHARED" value="1" enum="TextureMode">
+			One map feeds albedo, roughness and height.
+		</constant>
+		<constant name="TEX_CHANNELS" value="2" enum="TextureMode">
+			Four independent maps are routed into red, green, blue and roughness.
+		</constant>
+		<constant name="TEXTURE_FILTER_NEAREST" value="0" enum="TextureFilter">
+			Nearest-neighbour sampling, which keeps the field's texels crisp.
+		</constant>
+		<constant name="TEXTURE_FILTER_LINEAR" value="1" enum="TextureFilter">
+			Linear sampling without mipmaps.
+		</constant>
+		<constant name="TEXTURE_FILTER_LINEAR_MIPMAP_ANISOTROPIC" value="2" enum="TextureFilter">
+			Linear sampling with anisotropic mipmaps. Choosing this also makes the pipeline generate the mipmaps.
+		</constant>
+	</constants>
+</class>

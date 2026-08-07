@@ -1,0 +1,23 @@
+# Normalize line endings in the repository, check out native on Windows.
+* text=auto
+
+*.cpp   text diff=cpp
+*.h     text diff=cpp
+*.gd    text
+*.tscn  text
+*.tres  text
+*.godot text
+*.md    text diff=markdown
+*.xml   text
+*.proto text
+SConstruct text
+Makefile   text
+
+*.png   binary
+*.gif   binary
+*.res   binary
+*.import text eol=lf
+
+# Vendored dependencies should not skew the language statistics.
+godot-cpp/**        linguist-vendored
+cppdisplacementx/** linguist-vendored

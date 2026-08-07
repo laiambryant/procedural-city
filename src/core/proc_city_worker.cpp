@@ -5,7 +5,11 @@
 #include "cli/gpu_server.h"
 #include "cli/rpc_client.h"
 #include "core/proc_city_job.h"
+#include "core/proc_city_log.h"
+#include "native/native_renderer.h"
 
+#include <godot_cpp/classes/array_mesh.hpp>
+#include <godot_cpp/variant/typed_array.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 
 using namespace godot;
@@ -14,28 +18,54 @@ using namespace godot;
 // worth retrying on the CPU binary rather than reporting.
 static constexpr int GPU_NO_ADAPTER_EXIT = 2;
 
-static String resolve_generation_binary(const Ref<GoplacementxRunner> &p_runner, const Dictionary &p_job, int &r_used_mode) {
+// What one generation produced, or why it could not: the two backends fill the
+// same shape so the tail of _thread_body never learns which one ran.
+struct MapProduction {
+	Dictionary run;
+	int used_mode = ProcCityGenerator::GEN_GPU_NATIVE;
+	String fail_stage;
+	String fail_message;
+
+	bool ok() const { return fail_stage.is_empty(); }
+
+	static MapProduction failure(const String &p_stage, const String &p_message) {
+		MapProduction production;
+		production.fail_stage = p_stage;
+		production.fail_message = p_message;
+		return production;
+	}
+};
+
+static bool is_native_generation_mode(int p_mode) {
+	return p_mode == ProcCityGenerator::GEN_GPU_NATIVE || p_mode == ProcCityGenerator::GEN_CPU_NATIVE;
+}
+
+static bool is_legacy_gpu_mode(int p_mode) {
+	return p_mode == ProcCityGenerator::GEN_GPU_LEGACY;
+}
+
+static String resolve_legacy_binary(const Ref<GoplacementxRunner> &p_runner, const Dictionary &p_job, int &r_used_mode) {
 	const String override_path = p_job["binary_override"];
 	const bool allow_download = p_job["auto_download"];
-	if ((int)p_job.get("generation_mode", ProcCityGenerator::GEN_CPU) == ProcCityGenerator::GEN_GPU) {
+	if (is_legacy_gpu_mode((int)p_job.get("generation_mode", ProcCityGenerator::GEN_CPU_LEGACY))) {
 		p_runner->set_cli_kind(GoplacementxRunner::CLI_GPUDISPLACEMENTX);
 		const String gpu_binary = p_runner->ensure_binary(override_path, allow_download);
 		if (!gpu_binary.is_empty()) {
-			r_used_mode = ProcCityGenerator::GEN_GPU;
+			r_used_mode = ProcCityGenerator::GEN_GPU_LEGACY;
 			return gpu_binary;
 		}
-		UtilityFunctions::push_warning("[ProcCity] gpudisplacementx CLI not found and the GitHub download did not succeed - falling back to the CPU pipeline (binary_path_override is ignored for the fallback).");
+		UtilityFunctions::push_warning("[ProcCity] gpudisplacementx CLI not found and the GitHub download did not succeed - falling back to the legacy CPU pipeline (binary_path_override is ignored for the fallback).");
 		p_runner->set_cli_kind(GoplacementxRunner::CLI_GODISPLACEMENTX);
-		r_used_mode = ProcCityGenerator::GEN_CPU;
+		r_used_mode = ProcCityGenerator::GEN_CPU_LEGACY;
 		return p_runner->ensure_binary(String(), allow_download);
 	}
 	p_runner->set_cli_kind(GoplacementxRunner::CLI_GODISPLACEMENTX);
-	r_used_mode = ProcCityGenerator::GEN_CPU;
+	r_used_mode = ProcCityGenerator::GEN_CPU_LEGACY;
 	return p_runner->ensure_binary(override_path, allow_download);
 }
 
 static const char *cli_display_name(int p_generation_mode) {
-	return p_generation_mode == ProcCityGenerator::GEN_GPU ? "gpudisplacementx" : "godisplacementx";
+	return is_legacy_gpu_mode(p_generation_mode) ? "gpudisplacementx" : "godisplacementx";
 }
 
 // run_generation_bundle prefers the persistent GPU server when the node opted
@@ -45,7 +75,7 @@ static const char *cli_display_name(int p_generation_mode) {
 static Dictionary run_generation_bundle(const Ref<GoplacementxRunner> &p_runner, const String &p_binary,
 										const String &p_config, const Array &p_emits, const Ref<GoplacementxParams> &p_params,
 										int p_used_mode, bool p_use_server, int p_material_max_size, bool p_mipmaps) {
-	if (p_used_mode == ProcCityGenerator::GEN_GPU && p_use_server) {
+	if (is_legacy_gpu_mode(p_used_mode) && p_use_server) {
 		ProcCityGpuServer *server = ProcCityGpuServer::get_singleton();
 		if (server && server->ensure_started(p_binary)) {
 			const Dictionary served = server->run_bundle(p_config, p_emits, p_params, p_material_max_size, p_mipmaps);
@@ -72,12 +102,12 @@ static Array plan_emits_for_cli(const Ref<GoplacementxRunner> &p_runner, const D
 }
 
 static CliKind to_binary_provider_kind(int p_generation_mode) {
-	return p_generation_mode == ProcCityGenerator::GEN_GPU ? CliKind::GPUDISPLACEMENTX : CliKind::GODISPLACEMENTX;
+	return is_legacy_gpu_mode(p_generation_mode) ? CliKind::GPUDISPLACEMENTX : CliKind::GODISPLACEMENTX;
 }
 
-// try_grpc_bundle is the first thing every generation attempts: params travel
-// in the request message and maps come back over one persistent channel, so
-// nothing is ever written to or read from disk and the CLI's startup cost
+// try_grpc_bundle is the first thing every legacy generation attempts: params
+// travel in the request message and maps come back over one persistent channel,
+// so nothing is ever written to or read from disk and the CLI's startup cost
 // (process spawn, or the GPU's ~600ms device bring-up) is paid once per
 // session instead of once per generation. Returns an empty Dictionary - never
 // one with a "code" key - when gRPC isn't available for this binary, so the
@@ -106,91 +136,201 @@ static String cli_failure_message(const Dictionary &p_run, int p_used_mode) {
 	return message;
 }
 
-void ProcCityGenerator::_thread_body(Dictionary p_job) {
-	Ref<GoplacementxParams> p = p_job["params"];
+// The in-process backend needs no binary, no config file and no temporary
+// files: it plans the same emit paths purely as keys and hands the maps back as
+// Images, so the loader downstream never touches the disk.
+static MapProduction produce_native_maps(const Dictionary &p_job, Dictionary &r_result) {
+	const int stages = p_job["stages"];
+	const Array emits = plan_bundle_emits(p_job["dir"], (uint64_t)(int64_t)p_job["seed"],
+			stages & ProcCityGenerator::STAGE_HEIGHT, stages & ProcCityGenerator::STAGE_MATERIAL,
+			p_job["texture_mode"], map_extension_for(false, true), r_result);
+
+	bool used_gpu = false;
+	MapProduction production;
+	production.run = run_native_bundle(emits, p_job["params"],
+			(int)p_job.get("generation_mode", ProcCityGenerator::GEN_GPU_NATIVE) == ProcCityGenerator::GEN_GPU_NATIVE,
+			used_gpu);
+	production.used_mode = used_gpu ? ProcCityGenerator::GEN_GPU_NATIVE : ProcCityGenerator::GEN_CPU_NATIVE;
+	if ((int)production.run.get("code", 1) != 0) {
+		return MapProduction::failure((stages & ProcCityGenerator::STAGE_MATERIAL) ? "material" : "displacement",
+				String(production.run.get("output", "The native backend produced no maps.")));
+	}
+	return production;
+}
+
+static MapProduction produce_legacy_maps(const Dictionary &p_job, Dictionary &r_result, const Ref<GoplacementxRunner> &p_runner) {
 	const int stages = p_job["stages"];
 	const String dir = p_job["dir"];
+	Ref<GoplacementxParams> params = p_job["params"];
+	const int material_size = (int)p_job.get("material_max_size", 0);
+	const bool material_mipmaps =
+			(int)p_job.get("texture_filter", ProcCityGenerator::TEXTURE_FILTER_LINEAR) == ProcCityGenerator::TEXTURE_FILTER_LINEAR_MIPMAP_ANISOTROPIC;
 
-	Ref<GoplacementxRunner> runner;
-	runner.instantiate();
-
-	int used_mode = GEN_CPU;
-	String binary = resolve_generation_binary(runner, p_job, used_mode);
+	MapProduction production;
+	String binary = resolve_legacy_binary(p_runner, p_job, production.used_mode);
 	if (binary.is_empty()) {
-		call_deferred("_emit_failed", "setup", "godisplacementx CLI not found and the GitHub download did not succeed (offline? no release yet?). Set Binary Path Override or drop the binary under addons/procedural_city/godisplacementx/<platform>/.");
-		return;
+		return MapProduction::failure("setup", "godisplacementx CLI not found and the GitHub download did not succeed (offline? no release yet?). Set Binary Path Override or drop the binary under addons/procedural_city/godisplacementx/<platform>/.");
 	}
 
+	Array emits = plan_emits_for_cli(p_runner, p_job, dir, stages & ProcCityGenerator::STAGE_HEIGHT,
+			stages & ProcCityGenerator::STAGE_MATERIAL, r_result);
+
+	String config;
+	production.run = try_grpc_bundle(binary, production.used_mode, emits, params, material_size, material_mipmaps);
+	if (production.run.is_empty()) {
+		config = p_runner->write_config(dir, params);
+		if (config.is_empty()) {
+			return MapProduction::failure("setup", "Could not write config JSON into " + dir);
+		}
+		r_result["config_path"] = config;
+		const bool use_server = (bool)p_job.get("use_gpu_server", false) && !(bool)p_job.get("keep_intermediate_png", false);
+		production.run = run_generation_bundle(p_runner, binary, config, emits, params, production.used_mode, use_server,
+				material_size, material_mipmaps);
+	}
+
+	if (is_legacy_gpu_mode(production.used_mode) && (int)production.run["code"] == GPU_NO_ADAPTER_EXIT) {
+		UtilityFunctions::push_warning("[ProcCity] gpudisplacementx reported no usable GPU adapter (exit 2) - falling back to the legacy CPU pipeline.");
+		p_runner->set_cli_kind(GoplacementxRunner::CLI_GODISPLACEMENTX);
+		binary = p_runner->ensure_binary(String(), p_job["auto_download"]);
+		if (binary.is_empty()) {
+			return MapProduction::failure("setup", "godisplacementx CLI not found for the CPU fallback (offline? no release yet?). Drop the binary under addons/procedural_city/godisplacementx/<platform>/.");
+		}
+		production.used_mode = ProcCityGenerator::GEN_CPU_LEGACY;
+		emits = plan_emits_for_cli(p_runner, p_job, dir, stages & ProcCityGenerator::STAGE_HEIGHT,
+				stages & ProcCityGenerator::STAGE_MATERIAL, r_result);
+		production.run = try_grpc_bundle(binary, production.used_mode, emits, params, material_size, material_mipmaps);
+		if (production.run.is_empty()) {
+			if (config.is_empty()) {
+				config = p_runner->write_config(dir, params);
+				if (config.is_empty()) {
+					return MapProduction::failure("setup", "Could not write config JSON into " + dir);
+				}
+				r_result["config_path"] = config;
+			}
+			production.run = p_runner->run_bundle(binary, config, emits, params);
+		}
+	}
+
+	if ((int)production.run["code"] != 0) {
+		return MapProduction::failure((stages & ProcCityGenerator::STAGE_MATERIAL) ? "material" : "displacement",
+				cli_failure_message(production.run, production.used_mode));
+	}
+	return production;
+}
+
+// The native backends keep every map in memory, so their planned paths were
+// only dictionary keys. Dropping them once the images are loaded stops
+// generation_finished from advertising a file nobody wrote, and stops the
+// cleanup pass from chasing it.
+static void forget_planned_paths(Dictionary &r_result) {
+	for (const char *key : { "height_path", "albedo_path", "normal_path", "r_path", "g_path", "b_path", "rough_path" }) {
+		r_result.erase(key);
+	}
+}
+
+static String describe_requested_stages(int p_stages) {
+	PackedStringArray names;
+	if (p_stages & ProcCityGenerator::STAGE_HEIGHT) {
+		names.push_back("height");
+	}
+	if (p_stages & ProcCityGenerator::STAGE_MATERIAL) {
+		names.push_back("material");
+	}
+	if (p_stages & ProcCityGenerator::STAGE_GEOMETRY) {
+		names.push_back("geometry");
+	}
+	return names.is_empty() ? String("no stage") : String("+").join(names);
+}
+
+static String describe_material_images(const Dictionary &p_result) {
+	PackedStringArray parts;
+	for (const char *key : { "albedo_image", "normal_image", "rough_image" }) {
+		if (!p_result.has(key)) {
+			continue;
+		}
+		Ref<Image> image = p_result[key];
+		if (image.is_valid() && !image->is_empty()) {
+			parts.push_back(String(key).replace("_image", "") + " " + format_pixel_size(image));
+		}
+	}
+	return parts.is_empty() ? String("no map") : String(", ").join(parts);
+}
+
+static String describe_worker_meshes(const Dictionary &p_result) {
+	if (!p_result.has("geometry_meshes")) {
+		return "built on the main thread";
+	}
+	const TypedArray<ArrayMesh> meshes = p_result["geometry_meshes"];
+	int64_t surfaces = 0;
+	for (int i = 0; i < meshes.size(); i++) {
+		Ref<ArrayMesh> mesh = meshes[i];
+		if (mesh.is_valid()) {
+			surfaces += mesh->get_surface_count();
+		}
+	}
+	return String::num_int64(meshes.size()) + " mesh(es), " + String::num_int64(surfaces) + " surface(s)";
+}
+
+static Dictionary make_result_shell(const Dictionary &p_job) {
 	Dictionary result;
-	result["stages"] = stages;
+	result["stages"] = p_job["stages"];
 	result["seed"] = p_job["seed"];
 	result["texture_mode"] = p_job["texture_mode"];
 	result["texture_filter"] = p_job["texture_filter"];
-	result["dir"] = dir;
+	result["dir"] = p_job["dir"];
+	result["height_inputs_revision"] = p_job.get("height_inputs_revision", -1);
+	return result;
+}
+
+void ProcCityGenerator::_thread_body(Dictionary p_job) {
+	const int stages = p_job["stages"];
+	const int mode = (int)p_job.get("generation_mode", GEN_GPU_NATIVE);
 	const int material_size = (int)p_job.get("material_max_size", 0);
 	const bool material_mipmaps =
 			(int)p_job.get("texture_filter", TEXTURE_FILTER_LINEAR) == TEXTURE_FILTER_LINEAR_MIPMAP_ANISOTROPIC;
-	result["height_inputs_revision"] = p_job.get("height_inputs_revision", -1);
 
-	Array emits = plan_emits_for_cli(runner, p_job, dir, stages & STAGE_HEIGHT, stages & STAGE_MATERIAL, result);
+	Dictionary result = make_result_shell(p_job);
 
-	String config;
-	Dictionary run = try_grpc_bundle(binary, used_mode, emits, p, material_size, material_mipmaps);
-	if (run.is_empty()) {
-		config = runner->write_config(dir, p);
-		if (config.is_empty()) {
-			call_deferred("_emit_failed", "setup", "Could not write config JSON into " + dir);
-			return;
-		}
-		result["config_path"] = config;
-		const bool use_server = (bool)p_job.get("use_gpu_server", false) && !(bool)p_job.get("keep_intermediate_png", false);
-		run = run_generation_bundle(runner, binary, config, emits, p, used_mode, use_server,
-				material_size, material_mipmaps);
-	}
-	if (used_mode == GEN_GPU && (int)run["code"] == GPU_NO_ADAPTER_EXIT) {
-		UtilityFunctions::push_warning("[ProcCity] gpudisplacementx reported no usable GPU adapter (exit 2) - falling back to the CPU pipeline.");
-		runner->set_cli_kind(GoplacementxRunner::CLI_GODISPLACEMENTX);
-		binary = runner->ensure_binary(String(), p_job["auto_download"]);
-		if (binary.is_empty()) {
-			call_deferred("_emit_failed", "setup", "godisplacementx CLI not found for the CPU fallback (offline? no release yet?). Drop the binary under addons/procedural_city/godisplacementx/<platform>/.");
-			return;
-		}
-		used_mode = GEN_CPU;
-		emits = plan_emits_for_cli(runner, p_job, dir, stages & STAGE_HEIGHT, stages & STAGE_MATERIAL, result);
-		run = try_grpc_bundle(binary, used_mode, emits, p, material_size, material_mipmaps);
-		if (run.is_empty()) {
-			if (config.is_empty()) {
-				config = runner->write_config(dir, p);
-				if (config.is_empty()) {
-					call_deferred("_emit_failed", "setup", "Could not write config JSON into " + dir);
-					return;
-				}
-				result["config_path"] = config;
-			}
-			run = runner->run_bundle(binary, config, emits, p);
-		}
-	}
-	if ((int)run["code"] != 0) {
-		call_deferred("_emit_failed", (stages & STAGE_MATERIAL) ? "material" : "displacement", cli_failure_message(run, used_mode));
+	Ref<GoplacementxRunner> runner;
+	runner.instantiate();
+	StageTimer maps_timer("maps");
+	const MapProduction produced = is_native_generation_mode(mode)
+			? produce_native_maps(p_job, result)
+			: produce_legacy_maps(p_job, result, runner);
+	if (!produced.ok()) {
+		call_deferred("_emit_failed", produced.fail_stage, produced.fail_message);
 		return;
 	}
-	result["generation_mode_used"] = used_mode;
+	maps_timer.report(generation_mode_name(produced.used_mode) + ", " + describe_requested_stages(stages));
+	result["generation_mode_used"] = produced.used_mode;
 
-	String fail_stage;
-	String fail_message;
 	if ((int)p_job.get("texture_mode", TEX_SINGLE) == TEX_SHARED && p_job.has("existing_height_image")) {
 		result["shared_height_image"] = p_job["existing_height_image"];
 	}
-	if (!load_result_images(result, run.get("images", Dictionary()), material_size, material_mipmaps,
+
+	String fail_stage;
+	String fail_message;
+	StageTimer images_timer("material images");
+	if (!load_result_images(result, produced.run.get("images", Dictionary()), material_size, material_mipmaps,
 			fail_stage, fail_message)) {
 		call_deferred("_emit_failed", fail_stage, fail_message);
 		return;
 	}
 	prepare_material_images(result, material_size, material_mipmaps);
+	if (stages & STAGE_MATERIAL) {
+		images_timer.report(describe_material_images(result));
+	}
+	if (is_native_generation_mode(mode)) {
+		forget_planned_paths(result);
+	}
 
-	if ((stages & STAGE_GEOMETRY) && !build_worker_mesh(p_job, result)) {
-		call_deferred("_emit_failed", "geometry", "Worker mesh build failed.");
-		return;
+	if (stages & STAGE_GEOMETRY) {
+		StageTimer mesh_timer("geometry meshing");
+		if (!build_worker_mesh(p_job, result)) {
+			call_deferred("_emit_failed", "geometry", "Worker mesh build failed.");
+			return;
+		}
+		mesh_timer.report(describe_worker_meshes(result));
 	}
 
 	call_deferred("_apply_results", result);

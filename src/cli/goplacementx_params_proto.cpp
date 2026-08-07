@@ -100,7 +100,6 @@ displacement::v1::RenderOptions godot::render_options_from(const Ref<Goplacement
 		out.set_resolution(p_params->get_resolution());
 	}
 	out.set_invert(p_params->get_invert());
-	out.set_fast(p_params->get_fast());
 	out.set_gradient(std::string(p_params->gradient_to_string().utf8().get_data()));
 	return out;
 }

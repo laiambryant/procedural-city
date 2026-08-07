@@ -1,6 +1,6 @@
 # The persistent GPU server (opt-in via use_gpu_server) must serve consecutive
 # generations from one long-lived gpudisplacementx `serve` process, keeping
-# get_last_generation_mode_used() == GEN_GPU and ProcCityGpuServer.is_running()
+# get_last_generation_mode_used() == GEN_GPU_LEGACY and ProcCityGpuServer.is_running()
 # true across runs. With no GPU binary it must fall back cleanly to the CPU.
 # Run headless:
 #   godot --headless --path demo -s res://tests/gpu_server.gd
@@ -82,14 +82,14 @@ func _generate(gen: ProcCityGenerator) -> int:
 
 func _check_server_reuse() -> void:
 	print("=== GPU persistent server: due run consecutivi ===")
-	var gen := _make_generator(ProcCityGenerator.GEN_GPU, true)
+	var gen := _make_generator(ProcCityGenerator.GEN_GPU_LEGACY, true)
 
 	var used1 := await _generate(gen)
-	_check(used1 == ProcCityGenerator.GEN_GPU, "run 1 last_generation_mode_used == GEN_GPU")
+	_check(used1 == ProcCityGenerator.GEN_GPU_LEGACY, "run 1 last_generation_mode_used == GEN_GPU_LEGACY")
 	_check(ProcCityGpuServer.is_running(), "server in piedi dopo run 1")
 
 	var used2 := await _generate(gen)
-	_check(used2 == ProcCityGenerator.GEN_GPU, "run 2 last_generation_mode_used == GEN_GPU")
+	_check(used2 == ProcCityGenerator.GEN_GPU_LEGACY, "run 2 last_generation_mode_used == GEN_GPU_LEGACY")
 	_check(ProcCityGpuServer.is_running(), "server ancora in piedi dopo run 2 (processo riusato)")
 
 	gen.queue_free()
@@ -98,8 +98,8 @@ func _check_server_reuse() -> void:
 
 func _check_server_absent_fallback() -> void:
 	print("=== use_gpu_server con binario GPU assente (fallback CPU atteso) ===")
-	var gen := _make_generator(ProcCityGenerator.GEN_GPU, true)
+	var gen := _make_generator(ProcCityGenerator.GEN_GPU_LEGACY, true)
 	var used := await _generate(gen)
-	_check(used == ProcCityGenerator.GEN_CPU, "fallback pulito a GEN_CPU senza binario GPU")
+	_check(used == ProcCityGenerator.GEN_CPU_LEGACY, "fallback pulito a GEN_CPU_LEGACY senza binario GPU")
 	gen.queue_free()
 	await process_frame

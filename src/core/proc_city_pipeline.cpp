@@ -1,8 +1,10 @@
 #include "core/proc_city_generator.h"
 
 #include "cli/goplacementx_runner.h"
+#include "core/proc_city_log.h"
 
 #include <godot_cpp/classes/dir_access.hpp>
+#include <godot_cpp/classes/time.hpp>
 #include <godot_cpp/variant/utility_functions.hpp>
 
 using namespace godot;
@@ -66,6 +68,9 @@ void ProcCityGenerator::_start_pipeline(int p_stages, bool p_fresh_seed) {
 	}
 
 	emit_signal("generation_started", _pipeline_label(p_stages));
+	_pipeline_started_usec = Time::get_singleton()->get_ticks_usec();
+	log_pipeline_event("generation started: " + _pipeline_label(p_stages) + " (" +
+			generation_mode_name(generation_mode) + ", resolution " + String::num_int64(params->get_resolution()) + ")");
 
 	_busy = true;
 	_worker.instantiate();
@@ -137,7 +142,7 @@ void ProcCityGenerator::_apply_results(Dictionary p_result) {
 		_cell_heights_cache = p_result["cell_heights"];
 	}
 	_resolved_seed = (int64_t)p_result["seed"];
-	_last_generation_used = (int)p_result.get("generation_mode_used", GEN_CPU);
+	_last_generation_used = (int)p_result.get("generation_mode_used", GEN_GPU_NATIVE);
 
 	if (stages & STAGE_HEIGHT) {
 		emit_signal("generation_finished", "displacement", _last_height_path);
@@ -146,8 +151,10 @@ void ProcCityGenerator::_apply_results(Dictionary p_result) {
 
 	bool geometry_ok = true;
 	if (stages & STAGE_GEOMETRY) {
+		StageTimer install_timer("geometry install");
 		geometry_ok = _apply_result_geometry(p_result);
 		if (geometry_ok) {
+			install_timer.report();
 			emit_signal("generation_finished", "geometry", String());
 		}
 	}
@@ -157,12 +164,17 @@ void ProcCityGenerator::_apply_results(Dictionary p_result) {
 	}
 
 	if ((stages & STAGE_APPLY_MATERIAL) && geometry_ok) {
+		StageTimer material_timer("material apply");
 		_apply_material_main();
+		material_timer.report();
 		emit_signal("generation_finished", "material", _last_albedo_path);
 	}
 
 	_cleanup_temp(p_result);
 	_finish_worker();
+
+	log_pipeline_event("generation complete in " +
+			String::num((double)(Time::get_singleton()->get_ticks_usec() - _pipeline_started_usec) / 1000000.0, 2) + " s");
 
 	emit_signal("generation_progress", "all", 1.0);
 	emit_signal("all_finished");

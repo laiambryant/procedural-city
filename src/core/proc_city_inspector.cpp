@@ -11,7 +11,7 @@ void ProcCityGenerator::_bind_inspector_surface() {
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "params", PROPERTY_HINT_RESOURCE_TYPE, "GoplacementxParams"), "set_params", "get_params");
 
 	ADD_GROUP("Generation", "");
-	ADD_PROPERTY(PropertyInfo(Variant::INT, "generation_mode", PROPERTY_HINT_ENUM, "CPU,GPU"), "set_generation_mode", "get_generation_mode");
+	ADD_PROPERTY(PropertyInfo(Variant::INT, "generation_mode", PROPERTY_HINT_ENUM, GENERATION_MODE_HINT), "set_generation_mode", "get_generation_mode");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "use_gpu_server"), "set_use_gpu_server", "get_use_gpu_server");
 
 	ADD_GROUP("Mesh", "");
@@ -26,6 +26,7 @@ void ProcCityGenerator::_bind_inspector_surface() {
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "sample_filter", PROPERTY_HINT_ENUM, "Nearest,BoxAverage"), "set_sample_filter", "get_sample_filter");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "max_cells", PROPERTY_HINT_RANGE, "1,1048576,1"), "set_max_cells", "get_max_cells");
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "persist_in_scene"), "set_persist_in_scene", "get_persist_in_scene");
+	ADD_PROPERTY(PropertyInfo(Variant::STRING, "external_resource_dir", PROPERTY_HINT_DIR), "set_external_resource_dir", "get_external_resource_dir");
 
 	ADD_GROUP("Culling", "");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "geometry_chunks", PROPERTY_HINT_RANGE, "1,16,1"), "set_geometry_chunks", "get_geometry_chunks");
@@ -72,10 +73,11 @@ void ProcCityGenerator::_bind_inspector_surface() {
 	ADD_PROPERTY(PropertyInfo(Variant::BOOL, "keep_intermediate_png"), "set_keep_intermediate_png", "get_keep_intermediate_png");
 
 	ADD_GROUP("Actions", "");
+	ADD_PROPERTY(PropertyInfo(Variant::CALLABLE, "generate_all_action", PROPERTY_HINT_TOOL_BUTTON, "Generate All", PROPERTY_USAGE_EDITOR), "", "_btn_generate_all");
 	ADD_PROPERTY(PropertyInfo(Variant::CALLABLE, "generate_displacement_action", PROPERTY_HINT_TOOL_BUTTON, "Generate Displacement", PROPERTY_USAGE_EDITOR), "", "_btn_generate_displacement");
 	ADD_PROPERTY(PropertyInfo(Variant::CALLABLE, "build_geometry_action", PROPERTY_HINT_TOOL_BUTTON, "Build Geometry", PROPERTY_USAGE_EDITOR), "", "_btn_build_geometry");
 	ADD_PROPERTY(PropertyInfo(Variant::CALLABLE, "generate_material_action", PROPERTY_HINT_TOOL_BUTTON, "Generate Material", PROPERTY_USAGE_EDITOR), "", "_btn_generate_material");
-	ADD_PROPERTY(PropertyInfo(Variant::CALLABLE, "generate_all_action", PROPERTY_HINT_TOOL_BUTTON, "Generate All", PROPERTY_USAGE_EDITOR), "", "_btn_generate_all");
+	ADD_PROPERTY(PropertyInfo(Variant::CALLABLE, "randomize_palette_action", PROPERTY_HINT_TOOL_BUTTON, "Randomize Palette", PROPERTY_USAGE_EDITOR), "", "_btn_randomize_palette");
 	ADD_PROPERTY(PropertyInfo(Variant::CALLABLE, "clear_generated_action", PROPERTY_HINT_TOOL_BUTTON, "Clear Generated", PROPERTY_USAGE_EDITOR), "", "_btn_clear_generated");
 
 	ADD_SIGNAL(MethodInfo("generation_started", PropertyInfo(Variant::STRING, "stage")));
@@ -84,8 +86,10 @@ void ProcCityGenerator::_bind_inspector_surface() {
 	ADD_SIGNAL(MethodInfo("generation_failed", PropertyInfo(Variant::STRING, "stage"), PropertyInfo(Variant::STRING, "message")));
 	ADD_SIGNAL(MethodInfo("all_finished"));
 
-	BIND_ENUM_CONSTANT(GEN_CPU);
-	BIND_ENUM_CONSTANT(GEN_GPU);
+	BIND_ENUM_CONSTANT(GEN_GPU_NATIVE);
+	BIND_ENUM_CONSTANT(GEN_CPU_NATIVE);
+	BIND_ENUM_CONSTANT(GEN_GPU_LEGACY);
+	BIND_ENUM_CONSTANT(GEN_CPU_LEGACY);
 	BIND_ENUM_CONSTANT(BUILD_ARRAY_MESH);
 	BIND_ENUM_CONSTANT(BUILD_MULTIMESH);
 	BIND_ENUM_CONSTANT(BUILD_CSG);
@@ -99,6 +103,62 @@ void ProcCityGenerator::_bind_inspector_surface() {
 	BIND_ENUM_CONSTANT(TEXTURE_FILTER_NEAREST);
 	BIND_ENUM_CONSTANT(TEXTURE_FILTER_LINEAR);
 	BIND_ENUM_CONSTANT(TEXTURE_FILTER_LINEAR_MIPMAP_ANISOTROPIC);
+}
+
+bool ProcCityGenerator::_runs_standalone_cli() const {
+	return generation_mode == GEN_GPU_LEGACY || generation_mode == GEN_CPU_LEGACY;
+}
+
+bool ProcCityGenerator::_bakes_style_into_vertices() const {
+	return build_mode == BUILD_ARRAY_MESH || build_mode == BUILD_HEX;
+}
+
+bool ProcCityGenerator::_roughness_comes_from_a_map() const {
+	return texture_mode != TEX_SINGLE;
+}
+
+bool ProcCityGenerator::_property_is_usable(const String &p_name) const {
+	if (p_name == "use_gpu_server") {
+		return generation_mode == GEN_GPU_LEGACY;
+	}
+	if (p_name == "auto_download_binary" || p_name == "binary_path_override" ||
+			p_name == "output_dir" || p_name == "keep_intermediate_png") {
+		return _runs_standalone_cli();
+	}
+	if (p_name == "external_resource_dir") {
+		return persist_in_scene;
+	}
+	if (p_name == "collision_layer") {
+		return generate_collision;
+	}
+	if (p_name == "clip_below_height" || p_name == "geometry_chunks" || p_name == "generate_occluders") {
+		return build_mode == BUILD_ARRAY_MESH;
+	}
+	if (p_name == "ao_strength" || p_name == "color_variation") {
+		return _bakes_style_into_vertices();
+	}
+	if (p_name == "hive_rim_falloff") {
+		return build_mode == BUILD_HEX && hive_rim_boost > 0.0;
+	}
+	if (p_name.begins_with("hive_")) {
+		return build_mode == BUILD_HEX;
+	}
+	if (p_name == "gridmap_item_id") {
+		return build_mode == BUILD_GRIDMAP && gridmap_mesh_library.is_valid();
+	}
+	if (p_name.begins_with("gridmap_")) {
+		return build_mode == BUILD_GRIDMAP;
+	}
+	if (p_name == "roughness") {
+		return !_roughness_comes_from_a_map();
+	}
+	return true;
+}
+
+void ProcCityGenerator::_validate_property(PropertyInfo &p_property) const {
+	if (!_property_is_usable(String(p_property.name))) {
+		p_property.usage |= PROPERTY_USAGE_READ_ONLY;
+	}
 }
 
 Callable ProcCityGenerator::_btn_generate_displacement() const {

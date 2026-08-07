@@ -86,6 +86,8 @@ void ProcCityGenerator::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_keep_intermediate_png"), &ProcCityGenerator::get_keep_intermediate_png);
 	ClassDB::bind_method(D_METHOD("set_persist_in_scene", "value"), &ProcCityGenerator::set_persist_in_scene);
 	ClassDB::bind_method(D_METHOD("get_persist_in_scene"), &ProcCityGenerator::get_persist_in_scene);
+	ClassDB::bind_method(D_METHOD("set_external_resource_dir", "value"), &ProcCityGenerator::set_external_resource_dir);
+	ClassDB::bind_method(D_METHOD("get_external_resource_dir"), &ProcCityGenerator::get_external_resource_dir);
 	ClassDB::bind_method(D_METHOD("set_generate_collision", "value"), &ProcCityGenerator::set_generate_collision);
 	ClassDB::bind_method(D_METHOD("get_generate_collision"), &ProcCityGenerator::get_generate_collision);
 	ClassDB::bind_method(D_METHOD("set_collision_layer", "value"), &ProcCityGenerator::set_collision_layer);
@@ -109,6 +111,7 @@ void ProcCityGenerator::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("is_point_inside_block", "local_point"), &ProcCityGenerator::is_point_inside_block);
 	ClassDB::bind_method(D_METHOD("find_clear_point", "local_point", "max_radius"), &ProcCityGenerator::find_clear_point);
 	ClassDB::bind_method(D_METHOD("release_source_images"), &ProcCityGenerator::release_source_images);
+	ClassDB::bind_method(D_METHOD("externalize_generated_resources"), &ProcCityGenerator::externalize_generated_resources);
 
 	ClassDB::bind_method(D_METHOD("_thread_body", "job"), &ProcCityGenerator::_thread_body);
 	ClassDB::bind_method(D_METHOD("_apply_results", "result"), &ProcCityGenerator::_apply_results);

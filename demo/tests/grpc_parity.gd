@@ -24,8 +24,8 @@ func _init() -> void:
 
 func _run(cpu_cli: String, gpu_cli: String) -> void:
 	await process_frame
-	await _check_mode(ProcCityGenerator.GEN_CPU, cpu_cli, "CPU")
-	await _check_mode(ProcCityGenerator.GEN_GPU, gpu_cli, "GPU")
+	await _check_mode(ProcCityGenerator.GEN_CPU_LEGACY, cpu_cli, "CPU")
+	await _check_mode(ProcCityGenerator.GEN_GPU_LEGACY, gpu_cli, "GPU")
 	if failures > 0:
 		push_error("grpc_parity: %d failure(s)" % failures)
 		quit(1)
@@ -102,7 +102,7 @@ func _check_mode(mode: int, cli: String, label: String) -> void:
 		return
 
 	var runner := GoplacementxRunner.new()
-	runner.cli_kind = GoplacementxRunner.CLI_GPUDISPLACEMENTX if mode == ProcCityGenerator.GEN_GPU else GoplacementxRunner.CLI_GODISPLACEMENTX
+	runner.cli_kind = GoplacementxRunner.CLI_GPUDISPLACEMENTX if mode == ProcCityGenerator.GEN_GPU_LEGACY else GoplacementxRunner.CLI_GODISPLACEMENTX
 	var p := _scene_params()
 	var config := runner.write_config(out_dir, p)
 	var ref_path := out_dir.path_join("grpc_parity_" + label.to_lower() + "_height.gdxraw")

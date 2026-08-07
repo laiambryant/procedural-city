@@ -51,12 +51,6 @@ static void append_invert_flag(PackedStringArray &r_args, const Ref<Goplacementx
 	}
 }
 
-static void append_fast_flag(PackedStringArray &r_args, const Ref<GoplacementxParams> &p_params) {
-	if (p_params.is_valid() && p_params->get_fast()) {
-		r_args.push_back("--fast");
-	}
-}
-
 // The gradient only affects color emits; grayscale and normal emits ignore it,
 // so it is always safe to append.
 static void append_gradient_flag(PackedStringArray &r_args, const Ref<GoplacementxParams> &p_params) {
@@ -145,7 +139,6 @@ Dictionary GoplacementxRunner::run_generate(const String &p_binary, const String
 
 	append_size_flags(args, p_params);
 	append_invert_flag(args, p_params);
-	append_fast_flag(args, p_params);
 	if (p_mode == "color") {
 		append_gradient_flag(args, p_params);
 	}
@@ -164,7 +157,6 @@ Dictionary GoplacementxRunner::run_bundle(const String &p_binary, const String &
 
 	append_size_flags(args, p_params);
 	append_invert_flag(args, p_params);
-	append_fast_flag(args, p_params);
 	append_gradient_flag(args, p_params);
 
 	for (int i = 0; i < p_emits.size(); i++) {

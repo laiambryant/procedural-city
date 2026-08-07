@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<class name="GoplacementxParams" inherits="Resource" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../godot-cpp/gdextension/class.xsd">
+	<brief_description>
+		Settings for the displacement field a [ProcCityGenerator] builds its city from.
+	</brief_description>
+	<description>
+		The generator draws a stack of grayscale shapes onto a canvas and reads the result as a height field. Each iteration picks one layer kind at random — rect, grid, cols, rows, lines or sprite — and draws it with a randomly chosen composition mode, so the layer toggles and ranges below shape the character of the skyline rather than any single building.
+		Every backend reads these same settings and the same seed produces the same field, so switching backends changes speed, not output.
+	</description>
+	<tutorials>
+	</tutorials>
+	<methods>
+		<method name="composition_modes_list" qualifiers="const">
+			<return type="PackedStringArray" />
+			<description>
+				The enabled composition modes as names, in canonical order. Falls back to a single [code]source-over[/code] entry when none are enabled.
+			</description>
+		</method>
+		<method name="from_dict">
+			<return type="void" />
+			<param index="0" name="dict" type="Dictionary" />
+			<description>
+				Loads settings from a parsed configuration dictionary, using the same field names as the on-disk JSON.
+			</description>
+		</method>
+		<method name="generate_random_palette">
+			<return type="void" />
+			<param index="0" name="stops" type="int" />
+			<param index="1" name="seed" type="int" />
+			<description>
+				Fills [member gradient_colors] with a fresh ramp of [param stops] colours. A [param seed] of 0 picks a random one.
+			</description>
+		</method>
+		<method name="get_effective_gradient" qualifiers="const">
+			<return type="PackedColorArray" />
+			<description>
+				The gradient actually used: [member gradient_colors] when the preset is Custom, otherwise the selected built-in preset.
+			</description>
+		</method>
+		<method name="gradient_to_string" qualifiers="const">
+			<return type="String" />
+			<description>
+				The effective gradient as a comma-separated list of hex colours, the form the command-line tools accept.
+			</description>
+		</method>
+		<method name="sprite_packs_list" qualifiers="const">
+			<return type="PackedStringArray" />
+			<description>
+				The enabled sprite packs as names, in canonical order.
+			</description>
+		</method>
+		<method name="to_dict" qualifiers="const">
+			<return type="Dictionary" />
+			<description>
+				The settings as a configuration dictionary matching the on-disk JSON shape.
+			</description>
+		</method>
+		<method name="to_json" qualifiers="const">
+			<return type="String" />
+			<description>
+				The settings serialised as the configuration JSON the command-line tools read.
+			</description>
+		</method>
+	</methods>
+	<members>
+		<member name="background_brightness" type="int" setter="set_background_brightness" getter="get_background_brightness">
+			Grey level, 0 to 255, the canvas is cleared to before anything is drawn. This becomes the height of every block no shape ever covers, so it sets the city's ground level.
+		</member>
+		<member name="cols_alpha" type="Vector2i" setter="set_cols_alpha" getter="get_cols_alpha">
+			Minimum and maximum opacity, as a percentage, one column draw is picked from.
+		</member>
+		<member name="cols_amount" type="Vector2i" setter="set_cols_amount" getter="get_cols_amount">
+			Minimum and maximum number of columns one draw places.
+		</member>
+		<member name="cols_brightness" type="Vector2i" setter="set_cols_brightness" getter="get_cols_brightness">
+			Minimum and maximum grey level, 0 to 255, one column draw is picked from. The width of this range is how varied the resulting building heights are.
+		</member>
+		<member name="cols_enabled" type="bool" setter="set_cols_enabled" getter="get_cols_enabled">
+			Whether iterations may draw columns: vertical runs of cells, stretched along their long axis by a random factor.
+		</member>
+		<member name="cols_gap" type="int" setter="set_cols_gap" getter="get_cols_gap">
+			Spacing between columns, as a percentage of their width. 100 leaves a gap as wide as the column itself.
+		</member>
+		<member name="cols_scale" type="int" setter="set_cols_scale" getter="get_cols_scale">
+			Size of a column cell, as a percentage of the drawn base size.
+		</member>
+		<member name="composition_modes" type="int" setter="set_composition_modes" getter="get_composition_modes">
+			Which blend modes an iteration may pick from. Each iteration chooses one at random, so enabling several is what produces layered, interfering relief rather than flat stacked plates. With none enabled every draw composites source-over.
+		</member>
+		<member name="gradient_colors" type="PackedColorArray" setter="set_gradient_colors" getter="get_gradient_colors">
+			The colour ramp the height field is mapped through to produce the albedo map. Used only when [member palette_preset] is Custom; fewer than two stops falls back to the default gradient.
+		</member>
+		<member name="grid_alpha" type="Vector2i" setter="set_grid_alpha" getter="get_grid_alpha">
+			Minimum and maximum opacity, as a percentage, one grid draw is picked from.
+		</member>
+		<member name="grid_amount" type="Vector2i" setter="set_grid_amount" getter="get_grid_amount">
+			Minimum and maximum number of cells per axis one grid draw places.
+		</member>
+		<member name="grid_brightness" type="Vector2i" setter="set_grid_brightness" getter="get_grid_brightness">
+			Minimum and maximum grey level, 0 to 255, one grid draw is picked from.
+		</member>
+		<member name="grid_enabled" type="bool" setter="set_grid_enabled" getter="get_grid_enabled">
+			Whether iterations may draw regular grids of cells. These read as city blocks.
+		</member>
+		<member name="grid_gap" type="int" setter="set_grid_gap" getter="get_grid_gap">
+			Spacing between grid cells, as a percentage of cell size.
+		</member>
+		<member name="grid_scale" type="int" setter="set_grid_scale" getter="get_grid_scale">
+			Size of a grid cell, as a percentage of the drawn base size.
+		</member>
+		<member name="invert" type="bool" setter="set_invert" getter="get_invert">
+			Inverts the finished map, turning towers into pits and back.
+		</member>
+		<member name="iterations" type="int" setter="set_iterations" getter="get_iterations">
+			How many shapes are drawn onto the canvas. The single strongest control over density: a low count leaves large open plates, a high one builds dense, finely interfering relief. Cost scales with it.
+		</member>
+		<member name="lines_alpha" type="Vector2i" setter="set_lines_alpha" getter="get_lines_alpha">
+			Minimum and maximum opacity, as a percentage, one line draw is picked from.
+		</member>
+		<member name="lines_brightness" type="Vector2i" setter="set_lines_brightness" getter="get_lines_brightness">
+			Minimum and maximum grey level, 0 to 255, one line draw is picked from.
+		</member>
+		<member name="lines_enabled" type="bool" setter="set_lines_enabled" getter="get_lines_enabled">
+			Whether iterations may draw full-width or full-height lines. These read as avenues cutting across the city.
+		</member>
+		<member name="lines_width" type="Vector2i" setter="set_lines_width" getter="get_lines_width">
+			Minimum and maximum line thickness, relative to a 2500-pixel canvas and scaled to the real resolution.
+		</member>
+		<member name="out_height" type="int" setter="set_out_height" getter="get_out_height">
+			Explicit map height in pixels. Set both this and [member out_width] above 0 to render a non-square map; otherwise [member resolution] is used.
+		</member>
+		<member name="out_width" type="int" setter="set_out_width" getter="get_out_width">
+			Explicit map width in pixels. Set both this and [member out_height] above 0 to render a non-square map; otherwise [member resolution] is used.
+		</member>
+		<member name="palette_preset" type="int" setter="set_palette_preset" getter="get_palette_preset">
+			Which colour ramp the albedo map uses. Custom uses [member gradient_colors]; the rest are built-in presets.
+		</member>
+		<member name="randomize_seed" type="bool" setter="set_randomize_seed" getter="get_randomize_seed">
+			Whether each run draws a fresh unpredictable seed. Turn it off to keep regenerating the same city from [member seed].
+		</member>
+		<member name="rect_alpha" type="Vector2i" setter="set_rect_alpha" getter="get_rect_alpha">
+			Minimum and maximum opacity, as a percentage, one rectangle draw is picked from.
+		</member>
+		<member name="rect_brightness" type="Vector2i" setter="set_rect_brightness" getter="get_rect_brightness">
+			Minimum and maximum grey level, 0 to 255, one rectangle draw is picked from.
+		</member>
+		<member name="rect_enabled" type="bool" setter="set_rect_enabled" getter="get_rect_enabled">
+			Whether iterations may draw single large rectangles. These read as districts or plateaus.
+		</member>
+		<member name="rect_scale" type="int" setter="set_rect_scale" getter="get_rect_scale">
+			Size of a rectangle, as a percentage of the drawn base size.
+		</member>
+		<member name="resolution" type="int" setter="set_resolution" getter="get_resolution">
+			Side of the square map in pixels, used unless both [member out_width] and [member out_height] are set. Higher values give finer relief and cost proportionally more to render.
+		</member>
+		<member name="rows_alpha" type="Vector2i" setter="set_rows_alpha" getter="get_rows_alpha">
+			Minimum and maximum opacity, as a percentage, one row draw is picked from.
+		</member>
+		<member name="rows_amount" type="Vector2i" setter="set_rows_amount" getter="get_rows_amount">
+			Minimum and maximum number of rows one draw places.
+		</member>
+		<member name="rows_brightness" type="Vector2i" setter="set_rows_brightness" getter="get_rows_brightness">
+			Minimum and maximum grey level, 0 to 255, one row draw is picked from.
+		</member>
+		<member name="rows_enabled" type="bool" setter="set_rows_enabled" getter="get_rows_enabled">
+			Whether iterations may draw rows: horizontal runs of cells, stretched along their long axis by a random factor.
+		</member>
+		<member name="rows_gap" type="int" setter="set_rows_gap" getter="get_rows_gap">
+			Spacing between rows, as a percentage of their height.
+		</member>
+		<member name="rows_scale" type="int" setter="set_rows_scale" getter="get_rows_scale">
+			Size of a row cell, as a percentage of the drawn base size.
+		</member>
+		<member name="seamless" type="bool" setter="set_seamless" getter="get_seamless">
+			Whether draws wrap around the canvas edges so the map tiles without a visible seam. Also stops shapes from starting off-canvas.
+		</member>
+		<member name="seed" type="int" setter="set_seed" getter="get_seed">
+			The seed the field is generated from. Only used when [member randomize_seed] is off. One seed always yields one city, on every backend and every machine.
+		</member>
+		<member name="sprite_packs" type="int" setter="set_sprite_packs" getter="get_sprite_packs">
+			Which sprite packs an iteration may draw from. Only meaningful with [member sprites_enabled] on.
+		</member>
+		<member name="sprites_enabled" type="bool" setter="set_sprites_enabled" getter="get_sprites_enabled">
+			Whether iterations may stamp sprites from the enabled packs. These add recognisable machined shapes on top of the abstract layers.
+		</member>
+		<member name="sprites_rotation_enabled" type="bool" setter="set_sprites_rotation_enabled" getter="get_sprites_rotation_enabled">
+			Whether stamped sprites may be rotated by a random quarter turn.
+		</member>
+	</members>
+</class>

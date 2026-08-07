@@ -1,6 +1,7 @@
 extends SceneTree
-# Headless verification of the mesher rewrite + new features.
-# Run: godot --headless --path demo --script test_mesher.gd
+# Contract for the mesher backends, collision, the cell-height cache and the
+# GridMap planner.
+# Run: godot --headless --path demo --script tests/mesher_contract.gd
 
 var fails := 0
 

@@ -218,13 +218,23 @@ void ProcCityGenerator::_forget_generated_library(Node3D *p_container) {
 	}
 }
 
-void ProcCityGenerator::_reparent_into_edited_scene(Node3D *p_container) {
+Node *ProcCityGenerator::_edited_scene_root_for_persistence() const {
 	if (!persist_in_scene || !Engine::get_singleton()->is_editor_hint() || get_tree() == nullptr) {
-		return;
+		return nullptr;
 	}
-	Node *root = get_tree()->get_edited_scene_root();
+	return get_tree()->get_edited_scene_root();
+}
+
+void ProcCityGenerator::_reparent_into_edited_scene(Node3D *p_container) {
+	Node *root = _edited_scene_root_for_persistence();
 	if (root != nullptr) {
 		_set_owner_recursive(p_container, root);
+	}
+}
+
+void ProcCityGenerator::_externalize_when_scene_owned() {
+	if (_edited_scene_root_for_persistence() != nullptr) {
+		externalize_generated_resources();
 	}
 }
 
@@ -247,4 +257,5 @@ void ProcCityGenerator::_install_geometry(Node3D *p_container) {
 	if (_material.is_valid()) {
 		_apply_material_to_generated();
 	}
+	_externalize_when_scene_owned();
 }

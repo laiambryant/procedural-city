@@ -87,7 +87,7 @@ func _check(p_condition: bool, p_message: String) -> void:
 
 
 func _case_cpu_asks_for_raw(p_cpu: String) -> void:
-	var gen := _make_generator(ProcCityGenerator.GEN_CPU, p_cpu)
+	var gen := _make_generator(ProcCityGenerator.GEN_CPU_LEGACY, p_cpu)
 	var path := await _run_displacement(gen)
 	_check(path.ends_with(".gdxraw"), "CPU run should emit .gdxraw, got: " + path)
 	_check(gen.get_cell_heights().size() > 0, "CPU run produced no height data")
@@ -95,7 +95,7 @@ func _case_cpu_asks_for_raw(p_cpu: String) -> void:
 
 
 func _case_png_bytes_under_gdxraw_name(p_cpu: String) -> void:
-	var gen := _make_generator(ProcCityGenerator.GEN_GPU, _write_fake_gpu_binary(p_cpu))
+	var gen := _make_generator(ProcCityGenerator.GEN_GPU_LEGACY, _write_fake_gpu_binary(p_cpu))
 	var path := await _run_displacement(gen)
 	_check(path.ends_with(".gdxraw"), "fake GPU run should emit .gdxraw, got: " + path)
 	_check(gen.get_cell_heights().size() > 0, "PNG bytes under a .gdxraw name failed to load")

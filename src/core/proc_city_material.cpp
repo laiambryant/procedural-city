@@ -1,6 +1,7 @@
 #include "core/proc_city_generator.h"
 
 #include "core/proc_city_gridmap.h"
+#include "core/proc_city_log.h"
 #include "material/city_material_builder.h"
 
 #include <godot_cpp/classes/geometry_instance3d.hpp>
@@ -8,6 +9,23 @@
 #include <godot_cpp/variant/utility_functions.hpp>
 
 using namespace godot;
+
+// Every map in the spec becomes a GPU texture, so the pixels the build is about
+// to upload are what a slow "material" stage is usually waiting on.
+static String describe_material_upload(const CityMaterialSpec &p_spec) {
+	PackedStringArray parts;
+	int64_t bytes = 0;
+	for (const Ref<Image> &image : { p_spec.albedo, p_spec.normal_map, p_spec.roughness_map }) {
+		if (image.is_valid() && !image->is_empty()) {
+			parts.push_back(format_pixel_size(image));
+			bytes += (int64_t)image->get_data().size();
+		}
+	}
+	if (parts.is_empty()) {
+		return "no map";
+	}
+	return String(" + ").join(parts) + ", " + format_byte_size(bytes) + " uploaded";
+}
 
 Ref<Image> ProcCityGenerator::_resolve_albedo_image() {
 	if (_material_texture_mode == TEX_CHANNELS) {
@@ -49,13 +67,17 @@ CityMaterialSpec ProcCityGenerator::_material_spec() {
 }
 
 void ProcCityGenerator::_apply_material_main() {
-	Ref<Material> mat = build_city_material(_material_spec());
+	const CityMaterialSpec spec = _material_spec();
+	StageTimer build_timer("material build");
+	Ref<Material> mat = build_city_material(spec);
 	if (mat.is_null()) {
 		UtilityFunctions::push_warning("[ProcCity] No albedo image to build a material from.");
 		return;
 	}
+	build_timer.report(describe_material_upload(spec));
 	_material = mat;
 	_apply_material_to_generated();
+	_externalize_when_scene_owned();
 	_release_material_images();
 }
 

@@ -13,9 +13,9 @@ namespace godot {
 displacement::v1::Params params_to_proto(const Ref<GoplacementxParams> &p_params);
 
 // render_options_from builds the RenderOptions message shared by every RPC
-// (width/height/resolution, invert, fast, gradient), matching
-// append_size_flags/append_invert_flag/append_fast_flag/append_gradient_flag
-// in goplacementx_runner.cpp.
+// (width/height/resolution, invert, gradient), matching
+// append_size_flags/append_invert_flag/append_gradient_flag in
+// goplacementx_runner.cpp.
 displacement::v1::RenderOptions render_options_from(const Ref<GoplacementxParams> &p_params);
 
 // proto_params_to_dict is the inverse of params_to_proto: the same camelCase

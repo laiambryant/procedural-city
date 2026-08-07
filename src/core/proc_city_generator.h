@@ -7,6 +7,7 @@
 #include <godot_cpp/classes/node3d.hpp>
 #include <godot_cpp/classes/thread.hpp>
 #include <godot_cpp/core/binder_common.hpp>
+#include <godot_cpp/core/property_info.hpp>
 #include <godot_cpp/classes/array_mesh.hpp>
 #include <godot_cpp/variant/callable.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
@@ -28,20 +29,25 @@ class GridMap;
 class MeshInstance3D;
 struct CityMaterialSpec;
 
-// Name of the single child ProcCityGenerator installs its output under. Part of
-// the node's contract: scripts and tests reach the city by this name.
 inline constexpr const char *GENERATED_NAME = "GeneratedCity";
 
-// ProcCityGenerator drives the goplacementx CLI to produce a displacement map,
-// builds extruded block geometry from it (ArrayMesh / MultiMesh / CSG /
-// GridMap), and applies a CLI-generated albedo + normal material to the result.
+inline constexpr const char *GENERATION_MODE_HINT = "GPU,CPU,GPU (Legacy),CPU (Legacy)";
+
 class ProcCityGenerator : public Node3D {
 	GDCLASS(ProcCityGenerator, Node3D)
 
 public:
 	enum GenerationMode {
-		GEN_CPU = 0,
-		GEN_GPU = 1,
+		GEN_GPU_NATIVE = 0,
+		GEN_CPU_NATIVE = 1,
+		GEN_GPU_LEGACY = 2,
+		GEN_CPU_LEGACY = 3,
+	};
+	enum Stage {
+		STAGE_HEIGHT = 1,
+		STAGE_GEOMETRY = 2,
+		STAGE_MATERIAL = 4,
+		STAGE_APPLY_MATERIAL = 8,
 	};
 	enum BuildMode {
 		BUILD_ARRAY_MESH = 0,
@@ -54,15 +60,11 @@ public:
 		MATERIAL_STANDARD = 0,
 		MATERIAL_ORM = 1,
 	};
-	// TextureMode mirrors the Blender material graph from the design: a single
-	// colour texture, one texture shared across all channels, or independent maps
-	// routed into the R/G/B/Roughness/Height channels.
 	enum TextureMode {
 		TEX_SINGLE = 0,	  // one colour map -> Albedo; scalar roughness/metallic
 		TEX_SHARED = 1,	  // one map -> Albedo (colour) + Roughness + Height
 		TEX_CHANNELS = 2, // five maps -> R, G, B, Roughness, Height
 	};
-	// Sampling of the generated maps on the finished material.
 	enum TextureFilter {
 		TEXTURE_FILTER_NEAREST = 0,
 		TEXTURE_FILTER_LINEAR = 1,
@@ -70,65 +72,31 @@ public:
 	};
 
 private:
-	enum Stage {
-		STAGE_HEIGHT = 1,
-		STAGE_GEOMETRY = 2,
-		STAGE_MATERIAL = 4,
-		STAGE_APPLY_MATERIAL = 8,
-	};
-
 	Ref<GoplacementxParams> params;
-	int generation_mode = GEN_CPU;
+	int generation_mode = GEN_GPU_NATIVE;
 	Vector2 mesh_size = Vector2(10, 10);
 	Vector2i grid_vertices = Vector2i(32, 32);
 	double height_scale = 2.0;
 	double base_height = 0.0;
-	// height_power remaps the sampled height (v^power): > 1 thins the skyline
-	// into a few tall towers, < 1 raises the low blocks. 1 = linear.
 	double height_power = 1.0;
-	// block_inset > 0 (fraction of a cell per side) shrinks every block's
-	// footprint, turning the merged grid into freestanding buildings with
-	// streets between them (ArrayMesh adds a ground plane).
 	double block_inset = 0.0;
-	// ArrayMesh-only cutoff in mesh-local height units. Cells at or below it
-	// and wall portions hidden below it are omitted. Zero keeps legacy output.
 	double clip_below_height = 0.0;
 	int build_mode = BUILD_ARRAY_MESH;
 	int sample_filter = 1;
 	int max_cells = 8192;
-	// ArrayMesh-only. 1 keeps the single grid-wide mesh. Above that the city is
-	// split into geometry_chunks x geometry_chunks MeshInstance3D tiles, which
-	// the renderer can frustum- and occlusion-cull independently and which each
-	// carry their own (smaller, cheaper to build) collision shape.
 	int geometry_chunks = 1;
-	// Emits an OccluderInstance3D per chunk from the block silhouettes, so
-	// Godot's occlusion culling can hide buildings standing behind buildings.
-	// Needs occlusion culling enabled in project settings to have any effect.
 	bool generate_occluders = false;
-	// Hex hive backend (BUILD_HEX): lattice warp, per-cell irregularity and
-	// visible cell separation. Seeded from the resolved generation seed.
 	double hive_warp = 0.35;
 	double hive_jitter = 0.45;
 	double hive_gap = 0.06;
-	// Rim: columns outside hive_flat_rect (mesh-local XZ) rise by up to
-	// hive_rim_boost over hive_rim_falloff metres. Empty rect / zero boost
-	// disables the rim entirely.
 	Rect2 hive_flat_rect;
 	double hive_rim_boost = 0.0;
 	double hive_rim_falloff = 24.0;
 	bool hive_floor = true;
-	// GridMap backend (BUILD_GRIDMAP): block heights quantize into stacked
-	// cells. A zero level height picks one automatically (cells as close to
-	// cubic as the footprint allows). With fill_columns off only each column's
-	// top cell is placed. Supplying a mesh library replaces the generated block
-	// item with gridmap_item_id out of that library, which keeps its own item
-	// sizes, shapes and materials.
 	double gridmap_level_height = 0.0;
 	bool gridmap_fill_columns = true;
 	Ref<MeshLibrary> gridmap_mesh_library;
 	int gridmap_item_id = 0;
-	// Baked look: vertex-colour AO strength and per-cell luminance variation.
-	// Zero disables each effect. Block tops stay single flat quads.
 	double ao_strength = 0.7;
 	double color_variation = 0.12;
 	int material_mode = MATERIAL_STANDARD;
@@ -138,16 +106,13 @@ private:
 	double roughness = 1.0;
 	double metallic = 0.0;
 	int texture_filter = 1;
-	// Largest edge uploaded for material maps. Height/displacement stays at its
-	// authored resolution so geometry is unchanged. Zero disables resizing.
 	int material_max_size = 0;
 	bool texture_repeat = true;
 	bool keep_intermediate_png = false;
 	bool persist_in_scene = true;
+	String external_resource_dir = "res://generated_city";
 	bool generate_collision = false;
 	int collision_layer = 1;
-	// When no binary is found locally, fetch the latest godisplacementx
-	// release from GitHub and cache it under user://.
 	bool auto_download_binary = true;
 	bool use_gpu_server = false;
 	String binary_path_override;
@@ -156,7 +121,6 @@ private:
 	Ref<Image> _height_image;
 	Ref<Image> _albedo_image;
 	Ref<Image> _normal_image;
-	// Per-channel maps used by TEX_CHANNELS (R/G/B/Roughness).
 	Ref<Image> _r_image;
 	Ref<Image> _g_image;
 	Ref<Image> _b_image;
@@ -167,26 +131,26 @@ private:
 	// grid. Worker results carry the launch revision so a setter invoked while a
 	// job is in flight cannot restore a cache sampled with obsolete settings.
 	int64_t _height_inputs_revision = 0;
-	// The MeshLibrary the GridMap backend generated for the installed city, if
-	// any. Held so the material stage can retint its block mesh; a
-	// user-supplied library is never mutated, so it is not tracked here.
 	Ref<MeshLibrary> _generated_library;
 	String _last_height_path;
 	String _last_albedo_path;
 	String _last_normal_path;
-	// Texture mode the cached material images were generated for; drives how
-	// _apply_material_main routes them onto the material.
 	int _material_texture_mode = TEX_SINGLE;
 	// Filter captured with the job that produced the retained maps. Inspector
 	// edits made while a worker is running must not change how that result is
 	// uploaded after its mip policy has already been decided.
 	int _material_texture_filter = TEXTURE_FILTER_LINEAR;
 	int64_t _resolved_seed = 0;
-	int _last_generation_used = GEN_CPU;
+	uint64_t _pipeline_started_usec = 0;
+	int _last_generation_used = GEN_GPU_NATIVE;
 	Ref<Thread> _worker;
 	bool _busy = false;
 
 	void _ensure_params();
+	bool _runs_standalone_cli() const;
+	bool _bakes_style_into_vertices() const;
+	bool _roughness_comes_from_a_map() const;
+	bool _property_is_usable(const String &p_name) const;
 	String _resolve_output_dir() const;
 	Node *_get_generated() const;
 	void _set_owner_recursive(Node *p_node, Node *p_owner);
@@ -205,11 +169,11 @@ private:
 	Node3D *_make_chunk_container(const std::vector<Ref<ArrayMesh>> &p_meshes);
 	Node3D *_install_worker_meshes(const TypedArray<ArrayMesh> &p_meshes);
 	bool _resolve_gridmap_library(const Vector3 &p_cell_size, Ref<MeshLibrary> &r_library, int &r_item);
-	// Swaps p_container in as the GeneratedCity child (removes the old one,
-	// handles editor ownership and the material override). Main thread only.
 	void _install_geometry(Node3D *p_container);
 	void _forget_generated_library(Node3D *p_container);
+	Node *_edited_scene_root_for_persistence() const;
 	void _reparent_into_edited_scene(Node3D *p_container);
+	void _externalize_when_scene_owned();
 	void _attach_collision(Node3D *p_container);
 	void _attach_trimesh_body(MeshInstance3D *p_mesh_instance);
 	void _attach_multimesh_body(Node3D *p_container);
@@ -236,9 +200,8 @@ private:
 
 protected:
 	static void _bind_methods();
-	// Split out of _bind_methods: the editor-facing half (property groups,
-	// action buttons, signals, enum constants) lives in proc_city_inspector.cpp.
 	static void _bind_inspector_surface();
+	void _validate_property(PropertyInfo &p_property) const;
 	void _notification(int p_what);
 
 public:
@@ -258,9 +221,9 @@ public:
 	double get_block_inset() const { return block_inset; }
 	void set_clip_below_height(double p_v) { clip_below_height = p_v; }
 	double get_clip_below_height() const { return clip_below_height; }
-	void set_build_mode(int p_v) { build_mode = p_v; }
+	void set_build_mode(int p_v) { build_mode = p_v; notify_property_list_changed(); }
 	int get_build_mode() const { return build_mode; }
-	void set_generation_mode(int p_v) { generation_mode = p_v; }
+	void set_generation_mode(int p_v) { generation_mode = p_v; notify_property_list_changed(); }
 	int get_generation_mode() const { return generation_mode; }
 	int get_last_generation_mode_used() const { return _last_generation_used; }
 	void set_sample_filter(int p_v) { sample_filter = p_v; _invalidate_cell_heights_cache(); }
@@ -279,7 +242,7 @@ public:
 	double get_hive_gap() const { return hive_gap; }
 	void set_hive_flat_rect(const Rect2 &p_v) { hive_flat_rect = p_v; }
 	Rect2 get_hive_flat_rect() const { return hive_flat_rect; }
-	void set_hive_rim_boost(double p_v) { hive_rim_boost = p_v; }
+	void set_hive_rim_boost(double p_v) { hive_rim_boost = p_v; notify_property_list_changed(); }
 	double get_hive_rim_boost() const { return hive_rim_boost; }
 	void set_hive_rim_falloff(double p_v) { hive_rim_falloff = p_v; }
 	double get_hive_rim_falloff() const { return hive_rim_falloff; }
@@ -289,7 +252,7 @@ public:
 	double get_gridmap_level_height() const { return gridmap_level_height; }
 	void set_gridmap_fill_columns(bool p_v) { gridmap_fill_columns = p_v; }
 	bool get_gridmap_fill_columns() const { return gridmap_fill_columns; }
-	void set_gridmap_mesh_library(const Ref<MeshLibrary> &p_v) { gridmap_mesh_library = p_v; }
+	void set_gridmap_mesh_library(const Ref<MeshLibrary> &p_v) { gridmap_mesh_library = p_v; notify_property_list_changed(); }
 	Ref<MeshLibrary> get_gridmap_mesh_library() const { return gridmap_mesh_library; }
 	void set_gridmap_item_id(int p_v) { gridmap_item_id = p_v; }
 	int get_gridmap_item_id() const { return gridmap_item_id; }
@@ -299,7 +262,7 @@ public:
 	double get_color_variation() const { return color_variation; }
 	void set_material_mode(int p_v) { material_mode = p_v; }
 	int get_material_mode() const { return material_mode; }
-	void set_texture_mode(int p_v) { texture_mode = p_v; }
+	void set_texture_mode(int p_v) { texture_mode = p_v; notify_property_list_changed(); }
 	int get_texture_mode() const { return texture_mode; }
 	void set_normal_strength(double p_v) { normal_strength = p_v; }
 	double get_normal_strength() const { return normal_strength; }
@@ -317,9 +280,11 @@ public:
 	bool get_texture_repeat() const { return texture_repeat; }
 	void set_keep_intermediate_png(bool p_v) { keep_intermediate_png = p_v; }
 	bool get_keep_intermediate_png() const { return keep_intermediate_png; }
-	void set_persist_in_scene(bool p_v) { persist_in_scene = p_v; }
+	void set_persist_in_scene(bool p_v) { persist_in_scene = p_v; notify_property_list_changed(); }
 	bool get_persist_in_scene() const { return persist_in_scene; }
-	void set_generate_collision(bool p_v) { generate_collision = p_v; }
+	void set_external_resource_dir(const String &p_v) { external_resource_dir = p_v; }
+	String get_external_resource_dir() const { return external_resource_dir; }
+	void set_generate_collision(bool p_v) { generate_collision = p_v; notify_property_list_changed(); }
 	bool get_generate_collision() const { return generate_collision; }
 	void set_collision_layer(int p_v) { collision_layer = p_v; }
 	int get_collision_layer() const { return collision_layer; }
@@ -332,32 +297,18 @@ public:
 	void set_output_dir(const String &p_v) { output_dir = p_v; }
 	String get_output_dir() const { return output_dir; }
 
-	// Direct access to the cached displacement image: lets scripts feed their
-	// own heightmap into Build Geometry without running the CLI.
 	void set_height_image(const Ref<Image> &p_image) { _height_image = p_image; _invalidate_cell_heights_cache(); }
 	Ref<Image> get_height_image() const { return _height_image; }
 
 	Dictionary get_cell_heights() const;
 
-	// Gameplay queries over the resolved block field, in the generator's own
-	// local space. They read the same cached cell heights get_cell_heights()
-	// returns, so they cost a grid lookup rather than an image sample and stay
-	// correct after release_source_images().
-	//
-	// sample_city_height: the resolved height field under a point, in mesh-local
-	//   units (0 outside the field). This is the raw grid value, whether or not
-	//   the cell survived clip_below_height.
-	// is_point_inside_block: whether a point is inside a block that actually got
-	//   built — cells at or below clip_below_height contribute no geometry, and
-	//   block_inset leaves streets between freestanding towers, so both read as
-	//   clear.
-	// find_clear_point: nearest point, searched outward up to max_radius, whose
-	//   block does not rise above clip_below_height — the spawn-relocation query.
 	double sample_city_height(const Vector3 &p_local_point) const;
 	bool is_point_inside_block(const Vector3 &p_local_point) const;
 	Vector3 find_clear_point(const Vector3 &p_local_point, double p_max_radius) const;
 
 	void release_source_images();
+
+	void externalize_generated_resources();
 
 	void generate_displacement();
 	void build_geometry();

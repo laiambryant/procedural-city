@@ -18,11 +18,11 @@ func _run() -> void:
 	var probe := GoplacementxRunner.new()
 	probe.cli_kind = GoplacementxRunner.CLI_GPUDISPLACEMENTX
 	var gpu_available := not probe.find_binary("").is_empty()
-	var expected := ProcCityGenerator.GEN_GPU if gpu_available else ProcCityGenerator.GEN_CPU
+	var expected := ProcCityGenerator.GEN_GPU_LEGACY if gpu_available else ProcCityGenerator.GEN_CPU_LEGACY
 	var title := "GPU mode con binario bundled (GPU attesa)" if gpu_available \
 			else "GPU mode senza binario gpudisplacementx (fallback atteso)"
-	await _check_generation(ProcCityGenerator.GEN_GPU, expected, title)
-	await _check_generation(ProcCityGenerator.GEN_CPU, ProcCityGenerator.GEN_CPU, "CPU mode end-to-end")
+	await _check_generation(ProcCityGenerator.GEN_GPU_LEGACY, expected, title)
+	await _check_generation(ProcCityGenerator.GEN_CPU_LEGACY, ProcCityGenerator.GEN_CPU_LEGACY, "CPU mode end-to-end")
 	if failures > 0:
 		push_error("gpu_fallback: %d failure(s)" % failures)
 		quit(1)
@@ -70,7 +70,7 @@ func _check_generation(mode: int, expected_used: int, title: String) -> void:
 	_check(finished_stages.has("geometry"), "geometry stage finished")
 	_check(finished_stages.has("material"), "material stage finished")
 	var used := gen.get_last_generation_mode_used()
-	var expected_label := "GEN_GPU" if expected_used == ProcCityGenerator.GEN_GPU else "GEN_CPU"
+	var expected_label := "GEN_GPU_LEGACY" if expected_used == ProcCityGenerator.GEN_GPU_LEGACY else "GEN_CPU_LEGACY"
 	_check(used == expected_used, "last_generation_mode_used == " + expected_label)
 	gen.queue_free()
 	await process_frame

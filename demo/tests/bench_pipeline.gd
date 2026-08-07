@@ -108,14 +108,14 @@ func _main(old_cli: String, new_cli: String, gpu_cli: String) -> void:
 		_bench_bundle("gpu_2048", gpu_cli, 2048, true)
 		_bench_bundle("gpu_8192", gpu_cli, 8192, true)
 		_bench_bundle("gpu_8192_nosprites", gpu_cli, 8192, false)
-		await _bench_generate_all(gpu_cli, ProcCityGenerator.GEN_GPU)
+		await _bench_generate_all(gpu_cli, ProcCityGenerator.GEN_GPU_LEGACY)
 
 	print("bench done")
 
 
 # End-to-end del nodo vero: generate_all con i parametri di main.tscn, dalla
 # chiamata al segnale all_finished (CLI + decode parallelo + mesh + materiale).
-func _bench_generate_all(cli: String, mode: int = ProcCityGenerator.GEN_CPU) -> void:
+func _bench_generate_all(cli: String, mode: int = ProcCityGenerator.GEN_CPU_LEGACY) -> void:
 	await process_frame
 	var gen := ProcCityGenerator.new()
 	root.add_child(gen)
@@ -131,6 +131,6 @@ func _bench_generate_all(cli: String, mode: int = ProcCityGenerator.GEN_CPU) -> 
 	var t0 := Time.get_ticks_msec()
 	gen.generate_all()
 	await gen.all_finished
-	var label := "GPU" if mode == ProcCityGenerator.GEN_GPU else "CPU"
+	var label := "GPU" if mode == ProcCityGenerator.GEN_GPU_LEGACY else "CPU"
 	print("generate_all end-to-end (8192, %s) | %6d ms" % [label, Time.get_ticks_msec() - t0])
 	gen.queue_free()

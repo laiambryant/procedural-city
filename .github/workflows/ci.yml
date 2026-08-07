@@ -32,6 +32,9 @@ jobs:
           - platform: linux
             target: template_release
             runner: ubuntu-latest
+          - platform: macos
+            target: template_release
+            runner: macos-latest
     steps:
       - uses: actions/checkout@v4
         with:

@@ -43,7 +43,6 @@ String godot::build_request_line(const String &p_config, const Array &p_emits, c
 	req["config"] = p_config;
 	append_size(req, p_params);
 	req["invert"] = p_params.is_valid() && p_params->get_invert();
-	req["fast"] = p_params.is_valid() && p_params->get_fast();
 	req["gradient"] = p_params.is_valid() ? p_params->gradient_to_string() : String();
 	req["emits"] = p_emits;
 	return JSON::stringify(req);
