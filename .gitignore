@@ -56,6 +56,9 @@ vcpkg_installed/
 # Cities the generator persists into the demo scene: regenerate, never commit.
 /demo/generated_city/
 
+# Local project-setting overrides (used to record at a different resolution).
+override.cfg
+
 # The godisplacementx / gpudisplacementx CLIs are not committed - the extension
 # downloads the matching release on demand, or picks up a binary dropped here.
 /demo/addons/procedural_city/godisplacementx/

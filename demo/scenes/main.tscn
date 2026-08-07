@@ -108,7 +108,7 @@ texture_filter = 2
 [node name="CameraRig" type="Node3D" parent="."]
 
 [node name="Camera3D" type="Camera3D" parent="CameraRig"]
-transform = Transform3D(1, 0, 0, 0, 0.9018, 0.4324, 0, -0.4324, 0.9018, 0, 78, 150)
+transform = Transform3D(1, 0, 0, 0, 0.9018, 0.4324, 0, -0.4324, 0.9018, 0, 86, 166)
 fov = 48.0
 near = 0.5
 far = 1200.0

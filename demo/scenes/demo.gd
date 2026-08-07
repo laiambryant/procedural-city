@@ -29,9 +29,21 @@ var _pass := 0
 var _started_usec := 0
 
 func _ready() -> void:
+	_fit_readout_to_viewport()
 	generator.generation_failed.connect(_on_generation_failed)
 	generator.all_finished.connect(_on_all_finished)
 	_start_next_pass()
+
+## The readout is authored against a 720p viewport; scale it so it stays
+## readable when the scene is rendered (or recorded) at a larger size.
+func _fit_readout_to_viewport() -> void:
+	var scale := get_viewport().get_visible_rect().size.y / 720.0
+	readout.add_theme_font_size_override("font_size", roundi(17 * scale))
+	readout.add_theme_constant_override("outline_size", roundi(6 * scale))
+	readout.offset_left = 28 * scale
+	readout.offset_right = 620 * scale
+	readout.offset_top = -58 * scale
+	readout.offset_bottom = -24 * scale
 
 func _process(delta: float) -> void:
 	camera_rig.rotate_y(TAU / ORBIT_PERIOD * delta)

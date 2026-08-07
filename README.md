@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/media/procedural-city.gif" alt="Three cities generated back to back, each rising out of its displacement map" width="640">
+  <img src="docs/media/procedural-city.gif" alt="Three cities generated back to back, each rising out of its displacement map" width="800">
 </p>
 
 <p align="center">
