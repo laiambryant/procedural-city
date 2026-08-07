@@ -1,12 +1,12 @@
 # Pins the interchange-format contract between the pipeline and the CLI.
 #
-# Case A: the CPU CLI cannot write .gdxraw, so the pipeline must ask it for
-# .png. Requesting .gdxraw got a PNG written to a .gdxraw path, which then
-# failed the GDXR header check ("Failed to load ...").
+# Case A: current CPU and GPU CLIs write .gdxraw, so a transient CPU pipeline
+# must request raw output and decode it successfully.
 #
 # Case B: a CLI that ignores the requested extension must still load. The fake
-# GPU binary below is a shim over the CPU one, so the pipeline asks for .gdxraw
-# and gets PNG bytes back; load_map_image sniffs content, not the filename.
+# GPU binary below is a shim over a legacy CPU one, so the pipeline asks for
+# .gdxraw and may get PNG bytes back; load_map_image sniffs content, not the
+# filename. This compatibility shim is POSIX-only.
 #
 # Run: godot --headless --path demo -s res://tests/gdxraw_fallback.gd
 extends SceneTree
@@ -23,8 +23,9 @@ func _init() -> void:
 
 
 func _cpu_binary() -> String:
-	var path := OS.get_user_data_dir().path_join("godisplacementx/bin/godisplacementx-cli")
-	return path if FileAccess.file_exists(path) else ""
+	var runner := GoplacementxRunner.new()
+	runner.cli_kind = GoplacementxRunner.CLI_GODISPLACEMENTX
+	return runner.find_binary("")
 
 
 # _write_fake_gpu_binary produces a shim that answers to gpudisplacementx's name
@@ -85,16 +86,16 @@ func _check(p_condition: bool, p_message: String) -> void:
 		_failures.append(p_message)
 
 
-func _case_cpu_asks_for_png(p_cpu: String) -> void:
-	var gen := _make_generator(ProcCityGenerator.GEN_CPU, p_cpu)
+func _case_cpu_asks_for_raw(p_cpu: String) -> void:
+	var gen := _make_generator(ProcCityGenerator.GEN_CPU_LEGACY, p_cpu)
 	var path := await _run_displacement(gen)
-	_check(path.ends_with(".png"), "CPU run should emit .png, got: " + path)
+	_check(path.ends_with(".gdxraw"), "CPU run should emit .gdxraw, got: " + path)
 	_check(gen.get_cell_heights().size() > 0, "CPU run produced no height data")
 	gen.queue_free()
 
 
 func _case_png_bytes_under_gdxraw_name(p_cpu: String) -> void:
-	var gen := _make_generator(ProcCityGenerator.GEN_GPU, _write_fake_gpu_binary(p_cpu))
+	var gen := _make_generator(ProcCityGenerator.GEN_GPU_LEGACY, _write_fake_gpu_binary(p_cpu))
 	var path := await _run_displacement(gen)
 	_check(path.ends_with(".gdxraw"), "fake GPU run should emit .gdxraw, got: " + path)
 	_check(gen.get_cell_heights().size() > 0, "PNG bytes under a .gdxraw name failed to load")
@@ -108,8 +109,9 @@ func _main() -> void:
 		quit(0)
 		return
 
-	await _case_cpu_asks_for_png(cpu)
-	await _case_png_bytes_under_gdxraw_name(cpu)
+	await _case_cpu_asks_for_raw(cpu)
+	if OS.get_name() != "Windows":
+		await _case_png_bytes_under_gdxraw_name(cpu)
 
 	if _failures.is_empty():
 		print("PASS: gdxraw_fallback")

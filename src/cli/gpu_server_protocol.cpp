@@ -5,12 +5,15 @@
 #include <godot_cpp/classes/json.hpp>
 #include <godot_cpp/variant/packed_byte_array.hpp>
 
+#include <vector>
+
 using namespace godot;
 
 // Sanity caps on the length-prefixed frames: reject anything claiming a path
-// over 64 KiB or a map blob over 1 GiB as a corrupt stream.
+// over 64 KiB or a map beyond the decoder's supported 8192 RGBA envelope as a
+// corrupt stream.
 static constexpr uint32_t MAX_FRAME_PATH_BYTES = 1u << 16;
-static constexpr uint32_t MAX_FRAME_BLOB_BYTES = 1u << 30;
+static constexpr uint32_t MAX_FRAME_BLOB_BYTES = (uint32_t)GDXRAW_MAX_STREAM_BYTES;
 
 // Width of the little-endian length prefix in front of each frame field.
 static constexpr uint64_t FRAME_LENGTH_BYTES = 4;
@@ -40,7 +43,6 @@ String godot::build_request_line(const String &p_config, const Array &p_emits, c
 	req["config"] = p_config;
 	append_size(req, p_params);
 	req["invert"] = p_params.is_valid() && p_params->get_invert();
-	req["fast"] = p_params.is_valid() && p_params->get_fast();
 	req["gradient"] = p_params.is_valid() ? p_params->gradient_to_string() : String();
 	req["emits"] = p_emits;
 	return JSON::stringify(req);
@@ -93,6 +95,26 @@ static bool read_chunk(const Ref<FileAccess> &p_pipe, uint32_t p_max, PackedByte
 	return read_exact(p_pipe, r_bytes.ptrw(), len);
 }
 
+static bool read_map_image(const Ref<FileAccess> &p_pipe, Ref<Image> &r_image) {
+	uint32_t len;
+	if (!read_u32le(p_pipe, len) || len > MAX_FRAME_BLOB_BYTES) {
+		return false;
+	}
+	constexpr uint32_t READ_CHUNK_BYTES = 1u << 20;
+	std::vector<uint8_t> chunk(MIN(len, READ_CHUNK_BYTES));
+	GdxrawStreamDecoder decoder((int64_t)len);
+	uint32_t remaining = len;
+	while (remaining > 0) {
+		const uint32_t take = MIN(remaining, READ_CHUNK_BYTES);
+		if (!read_exact(p_pipe, chunk.data(), take) || !decoder.append(chunk.data(), take)) {
+			return false;
+		}
+		remaining -= take;
+	}
+	r_image = decoder.finish();
+	return r_image.is_valid();
+}
+
 bool godot::read_frame(const Ref<FileAccess> &p_pipe, String &r_path, Ref<Image> &r_image) {
 	PackedByteArray path_bytes;
 	if (!read_chunk(p_pipe, MAX_FRAME_PATH_BYTES, path_bytes)) {
@@ -100,10 +122,5 @@ bool godot::read_frame(const Ref<FileAccess> &p_pipe, String &r_path, Ref<Image>
 	}
 	r_path = String::utf8((const char *)path_bytes.ptr(), path_bytes.size());
 
-	PackedByteArray blob;
-	if (!read_chunk(p_pipe, MAX_FRAME_BLOB_BYTES, blob)) {
-		return false;
-	}
-	r_image = decode_gdxraw(blob);
-	return true;
+	return read_map_image(p_pipe, r_image);
 }

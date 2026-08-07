@@ -8,8 +8,11 @@
 #include <godot_cpp/classes/ref_counted.hpp>
 #include <godot_cpp/core/binder_common.hpp>
 #include <godot_cpp/variant/rect2.hpp>
+#include <godot_cpp/variant/typed_array.hpp>
 #include <godot_cpp/variant/vector2.hpp>
 #include <godot_cpp/variant/vector2i.hpp>
+
+#include <vector>
 
 namespace godot {
 
@@ -17,6 +20,11 @@ namespace godot {
 // remaining footprint is too small to read as a building; the inspector range
 // for block_inset mirrors it.
 inline constexpr float MAX_BLOCK_INSET = 0.45f;
+
+// Largest chunk subdivision per axis. Chunking trades draw calls for culling
+// granularity: past this the per-chunk draw call and AABB bookkeeping cost more
+// than the culled geometry saves, even on a large grid.
+inline constexpr int MAX_GEOMETRY_CHUNKS = 16;
 
 // HeightmapMesher converts a grayscale displacement Image into block geometry,
 // mirroring the Blender "Grid -> Extrude Mesh per face" graph: one extruded box
@@ -50,7 +58,32 @@ public:
 	Ref<ArrayMesh> build_array_mesh(const Ref<Image> &p_image, const Vector2 &p_size, const Vector2i &p_verts,
 									double p_height_scale, double p_base_height, int p_filter,
 									double p_height_power = 1.0, double p_inset = 0.0,
-									int64_t p_seed = 0, double p_ao = 0.0, double p_variation = 0.0) const;
+									int64_t p_seed = 0, double p_ao = 0.0, double p_variation = 0.0,
+									double p_clip_below_height = 0.0) const;
+	// Native pipeline variant that returns the exact resolved heights consumed
+	// by the mesh, avoiding a second full-image sample for gameplay queries.
+	Ref<ArrayMesh> build_array_mesh_with_heights(const Ref<Image> &p_image, const Vector2 &p_size, const Vector2i &p_verts,
+											 double p_height_scale, double p_base_height, int p_filter,
+											 double p_height_power, double p_inset, int64_t p_seed,
+											 double p_ao, double p_variation, double p_clip_below_height,
+											 std::vector<float> &r_heights) const;
+	// Same geometry split into chunks x chunks meshes over disjoint cell rects,
+	// so the renderer can frustum- and occlusion-cull the city per tile instead
+	// of submitting one grid-wide mesh every frame, and each chunk's collision
+	// BVH is built over its own slice. Neighbour culling still reads the whole
+	// height grid, so the union of the chunks is triangle-for-triangle what
+	// build_array_mesh_with_heights produces. Returned in row-major chunk order.
+	std::vector<Ref<ArrayMesh>> build_array_mesh_chunks(const Ref<Image> &p_image, const Vector2 &p_size,
+													  const Vector2i &p_verts, double p_height_scale, double p_base_height,
+													  int p_filter, double p_height_power, double p_inset, int64_t p_seed,
+													  double p_ao, double p_variation, double p_clip_below_height,
+													  int p_chunks, std::vector<float> &r_heights) const;
+	// Script-facing form of the above, returning the tiles as an Array.
+	TypedArray<ArrayMesh> build_array_mesh_chunks_array(const Ref<Image> &p_image, const Vector2 &p_size,
+													   const Vector2i &p_verts, double p_height_scale, double p_base_height,
+													   int p_filter, double p_height_power, double p_inset, int64_t p_seed,
+													   double p_ao, double p_variation, double p_clip_below_height,
+													   int p_chunks) const;
 	// Hex-prism honeycomb backend: pointy-top hexagonal columns on an offset
 	// lattice, with domain-warped sampling and per-cell jitter so the result
 	// reads as grown comb rather than printed grid. warp/jitter in [0,1],

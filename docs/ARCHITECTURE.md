@@ -1,6 +1,6 @@
 # Architecture
 
-The extension is organized into five modules under `src/`, plus the
+The extension is organized into seven modules under `src/`, plus the
 GDExtension entry point at the root. Dependencies point downward only:
 
 ```
@@ -9,9 +9,11 @@ register_types.cpp          entry point: class registration, singleton lifecycle
 ├── core/                   ProcCityGenerator node: inspector surface, pipeline
 │     │                     orchestration, worker threading, scene-tree surgery
 │     ├── meshing/          image → geometry (no scene-tree access)
+│     ├── native/           in-process displacement backends (cppdisplacementx)
 │     ├── cli/              everything about the external CLI processes
-│     └── material/         CLI maps → BaseMaterial3D
+│     └── material/         generated maps → BaseMaterial3D
 │
+├── editor/                 EditorPlugin: the generation-mode radio group
 └── hive/                   standalone floor planner (HiveGenCore)
 ```
 
@@ -30,19 +32,32 @@ points compose stages:
 - `generate_material()` → material maps + apply
 - `generate_all()` → everything
 
-`proc_city_pipeline.cpp` holds the worker-thread body. The threading contract:
+`proc_city_pipeline.cpp` starts and finishes jobs; `proc_city_worker.cpp` holds
+the worker-thread body. The threading contract:
 
 1. `_snapshot_job()` copies **every** input into a `Dictionary` payload on the
    main thread — the worker never reads member fields.
-2. The worker runs the CLI, decodes result maps concurrently, and builds
+2. The worker renders the maps, decodes them concurrently, and builds
    ArrayMesh-backed geometry off-thread (safe: only worker-owned
    `Image`/`ArrayMesh` resources; surface creation goes through the
    RenderingServer's thread-safe queue).
 3. Results return via `call_deferred("_apply_results", …)`; all scene-tree
    mutation happens on the main thread.
 
-`proc_city_generator_bindings.cpp` isolates the ClassDB boilerplate
-(properties, signals, tool buttons) from the logic.
+`proc_city_generator_bindings.cpp` isolates the ClassDB boilerplate from the
+logic, and `proc_city_inspector.cpp` declares the editor-facing surface:
+property groups, tool buttons, signals, and the `_validate_property` rules that
+grey out properties the current configuration cannot use (the GPU server
+outside GPU Legacy, the Hive group outside HexHive, and so on).
+
+## native/ — in-process displacement
+
+`native_renderer.cpp` runs the cppdisplacementx core inside the extension,
+dispatching its compute shader through a local `RenderingDevice`
+(`native_gpu.cpp`) or compositing on worker threads. `native_params.cpp`
+bridges the `GoplacementxParams` resource and the sprite atlas into the core's
+own structs. No process, no config file, no temporary files: the maps come back
+as `Image`s.
 
 ## meshing/ — image → geometry
 
@@ -95,8 +110,14 @@ Shared infrastructure:
 ## material/ — maps → material
 
 `build_city_material(CityMaterialSpec)` assembles a Standard/ORM material from
-the CLI maps; `compose_rgb_albedo` packs three grayscale maps into one RGB
-image for the channels texture mode.
+the generated maps; `compose_rgb_albedo` packs three grayscale maps into one
+RGB image for the channels texture mode.
+
+## editor/ — inspector plugin
+
+`generation_mode_radio.cpp` replaces the `generation_mode` enum dropdown with a
+radio group, so all four backends are visible at once. It is the only code in
+the extension that links against editor classes.
 
 ## hive/ — floor planner
 

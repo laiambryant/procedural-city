@@ -19,6 +19,8 @@ void ProcCityGenerator::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_height_power"), &ProcCityGenerator::get_height_power);
 	ClassDB::bind_method(D_METHOD("set_block_inset", "value"), &ProcCityGenerator::set_block_inset);
 	ClassDB::bind_method(D_METHOD("get_block_inset"), &ProcCityGenerator::get_block_inset);
+	ClassDB::bind_method(D_METHOD("set_clip_below_height", "value"), &ProcCityGenerator::set_clip_below_height);
+	ClassDB::bind_method(D_METHOD("get_clip_below_height"), &ProcCityGenerator::get_clip_below_height);
 	ClassDB::bind_method(D_METHOD("set_height_image", "image"), &ProcCityGenerator::set_height_image);
 	ClassDB::bind_method(D_METHOD("get_height_image"), &ProcCityGenerator::get_height_image);
 	ClassDB::bind_method(D_METHOD("set_build_mode", "mode"), &ProcCityGenerator::set_build_mode);
@@ -32,6 +34,10 @@ void ProcCityGenerator::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_sample_filter"), &ProcCityGenerator::get_sample_filter);
 	ClassDB::bind_method(D_METHOD("set_max_cells", "value"), &ProcCityGenerator::set_max_cells);
 	ClassDB::bind_method(D_METHOD("get_max_cells"), &ProcCityGenerator::get_max_cells);
+	ClassDB::bind_method(D_METHOD("set_geometry_chunks", "value"), &ProcCityGenerator::set_geometry_chunks);
+	ClassDB::bind_method(D_METHOD("get_geometry_chunks"), &ProcCityGenerator::get_geometry_chunks);
+	ClassDB::bind_method(D_METHOD("set_generate_occluders", "value"), &ProcCityGenerator::set_generate_occluders);
+	ClassDB::bind_method(D_METHOD("get_generate_occluders"), &ProcCityGenerator::get_generate_occluders);
 	ClassDB::bind_method(D_METHOD("set_hive_warp", "value"), &ProcCityGenerator::set_hive_warp);
 	ClassDB::bind_method(D_METHOD("get_hive_warp"), &ProcCityGenerator::get_hive_warp);
 	ClassDB::bind_method(D_METHOD("set_hive_jitter", "value"), &ProcCityGenerator::set_hive_jitter);
@@ -72,12 +78,16 @@ void ProcCityGenerator::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("get_metallic"), &ProcCityGenerator::get_metallic);
 	ClassDB::bind_method(D_METHOD("set_texture_filter", "value"), &ProcCityGenerator::set_texture_filter);
 	ClassDB::bind_method(D_METHOD("get_texture_filter"), &ProcCityGenerator::get_texture_filter);
+	ClassDB::bind_method(D_METHOD("set_material_max_size", "value"), &ProcCityGenerator::set_material_max_size);
+	ClassDB::bind_method(D_METHOD("get_material_max_size"), &ProcCityGenerator::get_material_max_size);
 	ClassDB::bind_method(D_METHOD("set_texture_repeat", "value"), &ProcCityGenerator::set_texture_repeat);
 	ClassDB::bind_method(D_METHOD("get_texture_repeat"), &ProcCityGenerator::get_texture_repeat);
 	ClassDB::bind_method(D_METHOD("set_keep_intermediate_png", "value"), &ProcCityGenerator::set_keep_intermediate_png);
 	ClassDB::bind_method(D_METHOD("get_keep_intermediate_png"), &ProcCityGenerator::get_keep_intermediate_png);
 	ClassDB::bind_method(D_METHOD("set_persist_in_scene", "value"), &ProcCityGenerator::set_persist_in_scene);
 	ClassDB::bind_method(D_METHOD("get_persist_in_scene"), &ProcCityGenerator::get_persist_in_scene);
+	ClassDB::bind_method(D_METHOD("set_external_resource_dir", "value"), &ProcCityGenerator::set_external_resource_dir);
+	ClassDB::bind_method(D_METHOD("get_external_resource_dir"), &ProcCityGenerator::get_external_resource_dir);
 	ClassDB::bind_method(D_METHOD("set_generate_collision", "value"), &ProcCityGenerator::set_generate_collision);
 	ClassDB::bind_method(D_METHOD("get_generate_collision"), &ProcCityGenerator::get_generate_collision);
 	ClassDB::bind_method(D_METHOD("set_collision_layer", "value"), &ProcCityGenerator::set_collision_layer);
@@ -97,6 +107,11 @@ void ProcCityGenerator::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("clear_generated"), &ProcCityGenerator::clear_generated);
 	ClassDB::bind_method(D_METHOD("is_busy"), &ProcCityGenerator::is_busy);
 	ClassDB::bind_method(D_METHOD("get_cell_heights"), &ProcCityGenerator::get_cell_heights);
+	ClassDB::bind_method(D_METHOD("sample_city_height", "local_point"), &ProcCityGenerator::sample_city_height);
+	ClassDB::bind_method(D_METHOD("is_point_inside_block", "local_point"), &ProcCityGenerator::is_point_inside_block);
+	ClassDB::bind_method(D_METHOD("find_clear_point", "local_point", "max_radius"), &ProcCityGenerator::find_clear_point);
+	ClassDB::bind_method(D_METHOD("release_source_images"), &ProcCityGenerator::release_source_images);
+	ClassDB::bind_method(D_METHOD("externalize_generated_resources"), &ProcCityGenerator::externalize_generated_resources);
 
 	ClassDB::bind_method(D_METHOD("_thread_body", "job"), &ProcCityGenerator::_thread_body);
 	ClassDB::bind_method(D_METHOD("_apply_results", "result"), &ProcCityGenerator::_apply_results);

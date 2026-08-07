@@ -1,6 +1,7 @@
 #include "cli/gpu_server.h"
 
 #include "cli/gpu_server_protocol.h"
+#include "material/city_material_builder.h"
 
 #include <godot_cpp/classes/image.hpp>
 #include <godot_cpp/classes/json.hpp>
@@ -61,7 +62,8 @@ bool ProcCityGpuServer::ensure_started(const String &p_binary) {
 	return true;
 }
 
-Dictionary ProcCityGpuServer::run_bundle(const String &p_config, const Array &p_emits, const Ref<GoplacementxParams> &p_params) {
+Dictionary ProcCityGpuServer::run_bundle(const String &p_config, const Array &p_emits, const Ref<GoplacementxParams> &p_params,
+		int p_material_max_size, bool p_mipmaps) {
 	std::lock_guard<std::mutex> guard(io_mutex);
 	if (!ready || pipe.is_null() || !pipe->is_open()) {
 		return reply_error("gpu server not running");
@@ -86,6 +88,14 @@ Dictionary ProcCityGpuServer::run_bundle(const String &p_config, const Array &p_
 	}
 
 	const int count = (int)header.get("count", 0);
+	Dictionary emit_by_path;
+	for (int i = 0; i < p_emits.size(); i++) {
+		const Dictionary emit = p_emits[i];
+		const String path = emit.get("path", "");
+		if (!path.is_empty()) {
+			emit_by_path[path] = emit;
+		}
+	}
 	Dictionary images;
 	for (int i = 0; i < count; i++) {
 		String path;
@@ -97,6 +107,16 @@ Dictionary ProcCityGpuServer::run_bundle(const String &p_config, const Array &p_
 		if (image.is_null()) {
 			close_locked();
 			return reply_error("gpu server sent an undecodable map");
+		}
+		if (!emit_by_path.has(path)) {
+			close_locked();
+			return reply_error("gpu server returned an unexpected map path");
+		}
+		const Dictionary emit = emit_by_path[path];
+		if ((bool)emit.get("material", false)) {
+			prepare_material_image(image, p_material_max_size,
+					p_mipmaps && !(bool)emit.get("compose_channel", false),
+					(bool)emit.get("normal", false));
 		}
 		images[path] = image;
 	}

@@ -133,7 +133,7 @@ func _main() -> void:
 		print("visual_check: no bundled gpudisplacementx CLI, skipping the GPU screenshot")
 	else:
 		gen.build_mode = ProcCityGenerator.BUILD_ARRAY_MESH
-		gen.generation_mode = ProcCityGenerator.GEN_GPU
+		gen.generation_mode = ProcCityGenerator.GEN_GPU_LEGACY
 		gen.generate_all()
 		await gen.all_finished
 		if _failed:

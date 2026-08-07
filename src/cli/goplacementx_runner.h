@@ -32,11 +32,10 @@ public:
 	void set_cli_kind(int p_kind) { cli_kind = p_kind; }
 	int get_cli_kind() const { return cli_kind; }
 	// Whether the resolved CLI can write the .gdxraw interchange format. Only
-	// gpudisplacementx implements it; godisplacementx writes a PNG to whatever
-	// path it is handed, so asking it for .gdxraw yields a file that fails the
-	// GDXR header check at load time. Revisit once the raw writer sitting on
-	// godisplacementx's develop branch lands in a tagged release.
-	bool supports_gdxraw() const { return cli_kind == CLI_GPUDISPLACEMENTX; }
+	// Current CPU and GPU CLIs both implement GDXR. Older CPU binaries may still
+	// write PNG bytes under the requested .gdxraw name; load_map_image sniffs the
+	// content magic and keeps that fallback byte-compatible.
+	bool supports_gdxraw() const { return true; }
 	// find_binary resolves without touching the network; ensure_binary may
 	// additionally download the latest godisplacementx GitHub release when
 	// nothing is installed locally (blocking — call it from the worker).

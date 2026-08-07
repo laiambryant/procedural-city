@@ -40,7 +40,6 @@ void GoplacementxParams::_bind_methods() {
 	ADD_GROUP("Seed", "");
 	BIND_PLAIN(Variant::INT, seed);
 	BIND_PLAIN(Variant::BOOL, randomize_seed);
-	BIND_PLAIN(Variant::BOOL, fast);
 
 	ADD_GROUP("Generator", "");
 	BIND_FULL(Variant::INT, iterations, PROPERTY_HINT_RANGE, "10,2000,1");
@@ -99,6 +98,51 @@ void GoplacementxParams::_bind_methods() {
 
 #undef BIND_FULL
 #undef BIND_PLAIN
+}
+
+static bool is_layer_toggle(const String &p_name) {
+	return p_name == "rect_enabled" || p_name == "grid_enabled" || p_name == "cols_enabled" ||
+			p_name == "rows_enabled" || p_name == "lines_enabled" || p_name == "sprites_enabled";
+}
+
+bool GoplacementxParams::property_is_usable(const String &p_name) const {
+	if (is_layer_toggle(p_name)) {
+		return true;
+	}
+	if (p_name == "resolution") {
+		return !has_explicit_output_size();
+	}
+	if (p_name == "seed") {
+		return !randomize_seed;
+	}
+	if (p_name == "gradient_colors") {
+		return palette_preset == GPX_PALETTE_CUSTOM;
+	}
+	if (p_name == "sprite_packs" || p_name == "sprites_rotation_enabled") {
+		return sprites_enabled;
+	}
+	if (p_name.begins_with("rect_")) {
+		return rect_enabled;
+	}
+	if (p_name.begins_with("grid_")) {
+		return grid_enabled;
+	}
+	if (p_name.begins_with("cols_")) {
+		return cols_enabled;
+	}
+	if (p_name.begins_with("rows_")) {
+		return rows_enabled;
+	}
+	if (p_name.begins_with("lines_")) {
+		return lines_enabled;
+	}
+	return true;
+}
+
+void GoplacementxParams::_validate_property(PropertyInfo &p_property) const {
+	if (!property_is_usable(String(p_property.name))) {
+		p_property.usage |= PROPERTY_USAGE_READ_ONLY;
+	}
 }
 
 PackedStringArray GoplacementxParams::composition_modes_list() const {

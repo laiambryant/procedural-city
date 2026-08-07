@@ -17,6 +17,19 @@ env = SConscript("godot-cpp/SConstruct")
 env.Append(CPPPATH=["src/"])
 sources = Glob("src/*.cpp") + Glob("src/*/*.cpp")
 
+# cppdisplacementx is the dependency-free engine core (RNG, draw commands,
+# blend math, CPU compositor, GLSL source) shared with the sibling CLIs. It is
+# a submodule compiled straight into the extension - no process, no PCK
+# problem: `git submodule update --init --recursive` checks it out.
+env.Append(CPPPATH=["cppdisplacementx/include"])
+sources += Glob("cppdisplacementx/src/*.cpp")
+
+# Inspector tooltips are class documentation: the doc XML is compressed into
+# the extension binary, so every property explains itself in the editor. The
+# generated source lives outside src/ so the globs above do not pick it up
+# twice.
+sources.append(env.GodotCPPDocData("gen/doc_data.gen.cpp", source=Glob("doc_classes/*.xml")))
+
 # gRPC client (talks to godisplacementx/gpudisplacementx `serve-grpc`), built
 # against vcpkg's x64-windows triplet (grpc's port only supports static
 # linkage regardless of triplet, so this pulls in the full static closure:

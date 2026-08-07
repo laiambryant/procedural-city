@@ -10,7 +10,7 @@ scons platform=linux target=template_debug   # or windows / macos
 
 The first build compiles godot-cpp and takes several minutes; later builds are
 incremental. Output lands in `demo/addons/procedural_city/bin/`, which the
-demo project's `.gdextension` references. Open `demo/` in Godot 4.4 to test.
+demo project's `.gdextension` references. Open `demo/` in Godot 4.4+ to test.
 
 ## Layout
 
@@ -21,8 +21,10 @@ threading/determinism contracts. The short version:
 |---|---|
 | `src/core/` | `ProcCityGenerator` node, pipeline orchestration, bindings |
 | `src/meshing/` | image → geometry backends and shared mesh infrastructure |
-| `src/cli/` | params resource, CLI runner, binary download, GPU server |
-| `src/material/` | material assembly from CLI maps |
+| `src/native/` | in-process displacement backends (compute shader / worker threads) |
+| `src/cli/` | params resource, legacy CLI runner, binary download, gRPC client |
+| `src/material/` | material assembly from the generated maps |
+| `src/editor/` | inspector plugin |
 | `src/hive/` | standalone `HiveGenCore` floor planner |
 
 ## Code style
@@ -57,10 +59,20 @@ Same seed ⇒ same output, for any thread count, on every platform:
 
 ## Testing
 
-`demo/tests/bench_meshers.gd` times the mesher backends headless;
-`demo/tests/multimesh_parity.gd` pins the MultiMesh buffer layout. Run them
-from the demo project with a headless editor build. If you touch a mesher,
-verify the parity script still passes and note before/after timings in the PR.
+Contract scripts live in `demo/tests/` and run headless:
+
+```bash
+godot --headless --path demo --script tests/mesher_contract.gd
+godot --headless --path demo --script tests/inspector_rules.gd
+godot --headless --path demo --script tests/chunked_geometry.gd
+godot --headless --path demo --script tests/multimesh_parity.gd
+godot --headless --path demo --script tests/hive_parity.gd
+godot --headless --path demo --script tests/scene_size.gd
+```
+
+`bench_*.gd` in the same folder time the pipeline and the mesher backends. If
+you touch a mesher, verify the parity scripts still pass and note before/after
+timings in the PR.
 
 ## Pull requests
 

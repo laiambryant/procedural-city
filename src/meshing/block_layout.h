@@ -91,21 +91,23 @@ struct WallFace {
 // interior walls stay culled); freestanding mode (inset > 0) always emits all
 // four, dropping to the floor, since every block stands alone over streets.
 int visible_walls(const std::vector<float> &p_heights, const CellGrid &p_grid,
-				  int p_i, int p_j, float p_top, const CellBounds &p_b, bool p_freestanding, WallFace r_faces[4]) {
+				  int p_i, int p_j, float p_top, const CellBounds &p_b, bool p_freestanding,
+				  float p_clip_below_height, WallFace r_faces[4]) {
 	int count = 0;
-	const float south = p_freestanding ? 0.0f : neighbour_height_or_floor(p_heights, p_grid, p_i, p_j - 1);
+	const float floor = MAX(0.0f, p_clip_below_height);
+	const float south = p_freestanding ? floor : MAX(floor, neighbour_height_or_floor(p_heights, p_grid, p_i, p_j - 1));
 	if (p_freestanding || p_top > south) {
 		r_faces[count++] = { Vector3(p_b.x0, south, p_b.z0), Vector3(p_b.x1, south, p_b.z0), Vector3(0, 0, -1) };
 	}
-	const float north = p_freestanding ? 0.0f : neighbour_height_or_floor(p_heights, p_grid, p_i, p_j + 1);
+	const float north = p_freestanding ? floor : MAX(floor, neighbour_height_or_floor(p_heights, p_grid, p_i, p_j + 1));
 	if (p_freestanding || p_top > north) {
 		r_faces[count++] = { Vector3(p_b.x1, north, p_b.z1), Vector3(p_b.x0, north, p_b.z1), Vector3(0, 0, 1) };
 	}
-	const float west = p_freestanding ? 0.0f : neighbour_height_or_floor(p_heights, p_grid, p_i - 1, p_j);
+	const float west = p_freestanding ? floor : MAX(floor, neighbour_height_or_floor(p_heights, p_grid, p_i - 1, p_j));
 	if (p_freestanding || p_top > west) {
 		r_faces[count++] = { Vector3(p_b.x0, west, p_b.z1), Vector3(p_b.x0, west, p_b.z0), Vector3(-1, 0, 0) };
 	}
-	const float east = p_freestanding ? 0.0f : neighbour_height_or_floor(p_heights, p_grid, p_i + 1, p_j);
+	const float east = p_freestanding ? floor : MAX(floor, neighbour_height_or_floor(p_heights, p_grid, p_i + 1, p_j));
 	if (p_freestanding || p_top > east) {
 		r_faces[count++] = { Vector3(p_b.x1, east, p_b.z0), Vector3(p_b.x1, east, p_b.z1), Vector3(1, 0, 0) };
 	}
@@ -113,31 +115,61 @@ int visible_walls(const std::vector<float> &p_heights, const CellGrid &p_grid,
 }
 
 int cell_quad_count(const std::vector<float> &p_heights, const CellGrid &p_grid, int p_i, int p_j,
-					float p_inset, bool p_freestanding) {
+					bool p_freestanding, float p_clip_below_height) {
 	const float top = height_at(p_heights, p_grid, p_i, p_j);
-	const CellBounds b(p_grid, p_i, p_j, p_inset);
-	WallFace faces[4];
-	return 1 + visible_walls(p_heights, p_grid, p_i, p_j, top, b, p_freestanding, faces);
+	const float floor = MAX(0.0f, p_clip_below_height);
+	if (top <= floor) {
+		return 0;
+	}
+	if (p_freestanding) {
+		return 5;
+	}
+	int quads = 1;
+	quads += top > MAX(floor, neighbour_height_or_floor(p_heights, p_grid, p_i, p_j - 1));
+	quads += top > MAX(floor, neighbour_height_or_floor(p_heights, p_grid, p_i, p_j + 1));
+	quads += top > MAX(floor, neighbour_height_or_floor(p_heights, p_grid, p_i - 1, p_j));
+	quads += top > MAX(floor, neighbour_height_or_floor(p_heights, p_grid, p_i + 1, p_j));
+	return quads;
 }
 
+// CellRect is the half-open block of cells one mesh covers. Chunked geometry
+// emits several meshes over disjoint rects of the same height grid; neighbour
+// culling still reads the FULL grid, so a wall on a chunk border is culled
+// exactly as it would be in a single mesh and the seams stay invisible.
+struct CellRect {
+	int i0 = 0;
+	int i1 = 0;
+	int j0 = 0;
+	int j1 = 0;
+
+	int cols() const { return i1 - i0; }
+	int rows() const { return j1 - j0; }
+	bool is_empty() const { return cols() <= 0 || rows() <= 0; }
+
+	static CellRect whole(const CellGrid &p_grid) { return { 0, p_grid.cols, 0, p_grid.rows }; }
+};
+
 // Quad layout per row is fixed by the emission order, so per-row prefix sums
-// give every band a private [vertex, index) range.
+// give every band a private [vertex, index) range. Rows are counted relative to
+// the rect, so offsets[0] is always 0 for the chunk being built.
 std::vector<int64_t> row_quad_offsets(const std::vector<float> &p_heights, const CellGrid &p_grid,
-									  float p_inset, bool p_freestanding) {
-	std::vector<int64_t> row_quads((size_t)p_grid.rows, 0);
-	parallel_for_rows(p_grid.rows, [&](int p_begin, int p_end) {
-		for (int j = p_begin; j < p_end; j++) {
+									  bool p_freestanding, float p_clip_below_height, const CellRect &p_rect) {
+	const int rows = p_rect.rows();
+	std::vector<int64_t> row_quads((size_t)rows, 0);
+	parallel_for_rows(rows, [&](int p_begin, int p_end) {
+		for (int r = p_begin; r < p_end; r++) {
+			const int j = p_rect.j0 + r;
 			int64_t quads = 0;
-			for (int i = 0; i < p_grid.cols; i++) {
-				quads += cell_quad_count(p_heights, p_grid, i, j, p_inset, p_freestanding);
+			for (int i = p_rect.i0; i < p_rect.i1; i++) {
+				quads += cell_quad_count(p_heights, p_grid, i, j, p_freestanding, p_clip_below_height);
 			}
-			row_quads[(size_t)j] = quads;
+			row_quads[(size_t)r] = quads;
 		}
 	});
 
-	std::vector<int64_t> offsets((size_t)p_grid.rows + 1, 0);
-	for (int j = 0; j < p_grid.rows; j++) {
-		offsets[(size_t)j + 1] = offsets[(size_t)j] + row_quads[(size_t)j];
+	std::vector<int64_t> offsets((size_t)rows + 1, 0);
+	for (int r = 0; r < rows; r++) {
+		offsets[(size_t)r + 1] = offsets[(size_t)r] + row_quads[(size_t)r];
 	}
 	return offsets;
 }

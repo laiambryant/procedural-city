@@ -2,6 +2,7 @@
 
 #include <gdextension_interface.h>
 
+#include <godot_cpp/classes/editor_plugin_registration.hpp>
 #include <godot_cpp/classes/engine.hpp>
 #include <godot_cpp/core/defs.hpp>
 #include <godot_cpp/core/memory.hpp>
@@ -12,12 +13,24 @@
 #include "cli/gpu_server.h"
 #include "cli/rpc_client.h"
 #include "core/proc_city_generator.h"
+#include "editor/generation_mode_radio.h"
 #include "hive/hive_gen_core.h"
 #include "meshing/heightmap_mesher.h"
 
 using namespace godot;
 
+static void register_editor_surface() {
+	GDREGISTER_INTERNAL_CLASS(ProcCityModeRadio);
+	GDREGISTER_INTERNAL_CLASS(ProcCityInspectorPlugin);
+	GDREGISTER_INTERNAL_CLASS(ProcCityEditorPlugin);
+	EditorPlugins::add_by_type<ProcCityEditorPlugin>();
+}
+
 void initialize_procedural_city_module(ModuleInitializationLevel p_level) {
+	if (p_level == MODULE_INITIALIZATION_LEVEL_EDITOR) {
+		register_editor_surface();
+		return;
+	}
 	if (p_level != MODULE_INITIALIZATION_LEVEL_SCENE) {
 		return;
 	}

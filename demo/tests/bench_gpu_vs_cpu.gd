@@ -89,7 +89,7 @@ func _main(cpu_cli: String, gpu_cli: String) -> void:
 		print("=== %d x %d ===" % [resolution, resolution])
 		_bench_bundle("cpu_%d" % resolution, cpu_cli, resolution)
 		_bench_bundle("gpu_%d" % resolution, gpu_cli, resolution)
-		for leg in [["CPU", ProcCityGenerator.GEN_CPU, cpu_cli, false], ["GPU", ProcCityGenerator.GEN_GPU, gpu_cli, false], ["GPU_SRV", ProcCityGenerator.GEN_GPU, gpu_cli, true]]:
+		for leg in [["CPU", ProcCityGenerator.GEN_CPU_LEGACY, cpu_cli, false], ["GPU", ProcCityGenerator.GEN_GPU_LEGACY, gpu_cli, false], ["GPU_SRV", ProcCityGenerator.GEN_GPU_LEGACY, gpu_cli, true]]:
 			var times := []
 			for i in RUNS:
 				times.append(await _bench_generate_all(leg[2], leg[1], resolution, leg[3]))

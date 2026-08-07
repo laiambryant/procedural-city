@@ -38,15 +38,14 @@ struct CellGrid {
 
 CellGrid make_cell_grid(const Vector2 &p_size, const Vector2i &p_verts);
 
-// HeightImageView is a compact red-channel snapshot of a height image:
-// `pixels` is width*height single bytes, either aliasing the source data of a
-// one-byte-per-pixel Image or extracted into `red`. Move-only so `pixels`
-// can never outlive the buffer it aliases.
+// HeightImageView aliases the source image bytes and records the pixel stride;
+// no full-size red-channel extraction is needed for RGB/RGBA inputs. Move-only
+// so `pixels` can never outlive the buffer it aliases.
 struct HeightImageView {
 	Ref<Image> image;
 	PackedByteArray data;
-	std::vector<uint8_t> red;
 	const uint8_t *pixels = nullptr;
+	int stride = 1;
 	int width = 0;
 	int height = 0;
 
@@ -56,7 +55,7 @@ struct HeightImageView {
 	HeightImageView(const HeightImageView &) = delete;
 	HeightImageView &operator=(const HeightImageView &) = delete;
 
-	bool is_valid() const { return pixels != nullptr && width > 0 && height > 0; }
+	bool is_valid() const { return pixels != nullptr && stride > 0 && width > 0 && height > 0; }
 };
 
 HeightImageView decode_height_image(const Ref<Image> &p_source);
