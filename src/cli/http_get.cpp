@@ -62,14 +62,14 @@ static String header_value(const Dictionary &p_headers, const String &p_key) {
 }
 
 static bool connect_and_request(const Ref<HTTPClient> &p_client, const String &p_host, const String &p_path,
-								const String &p_accept, HttpResponse &r_res) {
+		const String &p_accept, HttpResponse &r_res) {
 	if (p_client->connect_to_host("https://" + p_host, -1, TLSOptions::client()) != OK) {
 		r_res.error = "Could not start connection to " + p_host;
 		return false;
 	}
 	if (!poll_until(p_client, HTTPClient::STATUS_RESOLVING, CONNECT_TIMEOUT_MS) ||
-		!poll_until(p_client, HTTPClient::STATUS_CONNECTING, CONNECT_TIMEOUT_MS) ||
-		p_client->get_status() != HTTPClient::STATUS_CONNECTED) {
+			!poll_until(p_client, HTTPClient::STATUS_CONNECTING, CONNECT_TIMEOUT_MS) ||
+			p_client->get_status() != HTTPClient::STATUS_CONNECTED) {
 		r_res.error = "Connection to " + p_host + " failed (status " + String::num_int64(p_client->get_status()) + ").";
 		return false;
 	}

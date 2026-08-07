@@ -22,7 +22,7 @@ constexpr int HEAVY_MIN_ROWS_PER_BAND = 1;
 // output is identical for any thread count.
 template <typename EmitRows>
 void parallel_for_rows(int p_rows, const EmitRows &p_emit_rows,
-					   int p_min_rows_per_band = DEFAULT_MIN_ROWS_PER_BAND) {
+		int p_min_rows_per_band = DEFAULT_MIN_ROWS_PER_BAND) {
 	const int min_rows = std::max(1, p_min_rows_per_band);
 	const int hw = (int)std::thread::hardware_concurrency();
 	const int bands = std::clamp(p_rows / min_rows, 1, std::max(1, hw));

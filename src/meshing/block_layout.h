@@ -91,8 +91,8 @@ struct WallFace {
 // interior walls stay culled); freestanding mode (inset > 0) always emits all
 // four, dropping to the floor, since every block stands alone over streets.
 int visible_walls(const std::vector<float> &p_heights, const CellGrid &p_grid,
-				  int p_i, int p_j, float p_top, const CellBounds &p_b, bool p_freestanding,
-				  float p_clip_below_height, WallFace r_faces[4]) {
+		int p_i, int p_j, float p_top, const CellBounds &p_b, bool p_freestanding,
+		float p_clip_below_height, WallFace r_faces[4]) {
 	int count = 0;
 	const float floor = MAX(0.0f, p_clip_below_height);
 	const float south = p_freestanding ? floor : MAX(floor, neighbour_height_or_floor(p_heights, p_grid, p_i, p_j - 1));
@@ -115,7 +115,7 @@ int visible_walls(const std::vector<float> &p_heights, const CellGrid &p_grid,
 }
 
 int cell_quad_count(const std::vector<float> &p_heights, const CellGrid &p_grid, int p_i, int p_j,
-					bool p_freestanding, float p_clip_below_height) {
+		bool p_freestanding, float p_clip_below_height) {
 	const float top = height_at(p_heights, p_grid, p_i, p_j);
 	const float floor = MAX(0.0f, p_clip_below_height);
 	if (top <= floor) {
@@ -153,7 +153,7 @@ struct CellRect {
 // give every band a private [vertex, index) range. Rows are counted relative to
 // the rect, so offsets[0] is always 0 for the chunk being built.
 std::vector<int64_t> row_quad_offsets(const std::vector<float> &p_heights, const CellGrid &p_grid,
-									  bool p_freestanding, float p_clip_below_height, const CellRect &p_rect) {
+		bool p_freestanding, float p_clip_below_height, const CellRect &p_rect) {
 	const int rows = p_rect.rows();
 	std::vector<int64_t> row_quads((size_t)rows, 0);
 	parallel_for_rows(rows, [&](int p_begin, int p_end) {

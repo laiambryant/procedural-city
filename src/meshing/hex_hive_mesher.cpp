@@ -28,7 +28,7 @@ struct HexUvMap {
 
 // Planar XZ UVs with N = +Y: u grows with +x, v with +z -> T = +X, w = -1.
 void emit_hex_cap(PackedSurface::Writer &p_writer, const HexUvMap &p_uv_map,
-				  const Vector3 p_corners[6], float p_tint) {
+		const Vector3 p_corners[6], float p_tint) {
 	Vector2 uv[6];
 	for (int k = 0; k < 6; k++) {
 		uv[k] = p_uv_map.planar_uv(p_corners[k]);
@@ -41,7 +41,7 @@ void emit_hex_cap(PackedSurface::Writer &p_writer, const HexUvMap &p_uv_map,
 // down the face along the outward normal (seamless at the rim), and the base
 // darkens toward the floor when AO is baked.
 void emit_hex_walls(PackedSurface::Writer &p_writer, const HexUvMap &p_uv_map,
-					const Vector3 p_corners[6], float p_tint_top, float p_tint_bottom) {
+		const Vector3 p_corners[6], float p_tint_top, float p_tint_bottom) {
 	const Color top_col(p_tint_top, p_tint_top, p_tint_top);
 	const Color bot_col(p_tint_bottom, p_tint_bottom, p_tint_bottom);
 	for (int k = 0; k < 6; k++) {
@@ -65,7 +65,7 @@ void emit_hex_walls(PackedSurface::Writer &p_writer, const HexUvMap &p_uv_map,
 // Ground plane at y=0 across the whole layout: closes the view through the
 // inter-cell gaps and, darkened by AO, reads as alley floor.
 void emit_hex_floor(PackedSurface::Writer &p_writer, const HexUvMap &p_uv_map,
-					const HexLayout &p_layout, float p_shade) {
+		const HexLayout &p_layout, float p_shade) {
 	const Vector3 pos[4] = {
 		Vector3(p_layout.ox, 0.0f, p_layout.oz),
 		Vector3(p_layout.ox + p_layout.sx, 0.0f, p_layout.oz),
@@ -82,11 +82,11 @@ void emit_hex_floor(PackedSurface::Writer &p_writer, const HexUvMap &p_uv_map,
 }
 
 void emit_hex_cell(PackedSurface::Writer &p_writer, const HexUvMap &p_uv_map, const HeightImageView &p_view,
-				   const HexLayout &p_layout, const HexStyle &p_style, const RimProfile &p_rim,
-				   int p_i, int p_j, double p_height_scale, double p_base_height, int p_filter, double p_height_power) {
+		const HexLayout &p_layout, const HexStyle &p_style, const RimProfile &p_rim,
+		int p_i, int p_j, double p_height_scale, double p_base_height, int p_filter, double p_height_power) {
 	const Vector2 center = warped_cell_center(p_layout, p_style, p_i, p_j);
 	const float top = cell_column_height(p_view, p_layout, p_style, p_rim, center, p_i, p_j,
-										 p_height_scale, p_base_height, p_filter, p_height_power);
+			p_height_scale, p_base_height, p_filter, p_height_power);
 	Vector3 corners[6];
 	place_cell_corners(p_layout, p_style, center, top, p_i, p_j, corners);
 	const float tint = p_style.cell_tint(p_i, p_j);
@@ -98,10 +98,10 @@ void emit_hex_cell(PackedSurface::Writer &p_writer, const HexUvMap &p_uv_map, co
 } // namespace
 
 Ref<ArrayMesh> HeightmapMesher::build_hex_mesh(const Ref<Image> &p_image, const Vector2 &p_size, const Vector2i &p_verts,
-											   double p_height_scale, double p_base_height, int p_filter,
-											   double p_warp, double p_jitter, double p_gap, int64_t p_seed,
-											   const Rect2 &p_flat_rect, double p_rim_boost, double p_rim_falloff,
-											   double p_height_power, double p_ao, double p_variation, bool p_floor) const {
+		double p_height_scale, double p_base_height, int p_filter,
+		double p_warp, double p_jitter, double p_gap, int64_t p_seed,
+		const Rect2 &p_flat_rect, double p_rim_boost, double p_rim_falloff,
+		double p_height_power, double p_ao, double p_variation, bool p_floor) const {
 	const HeightImageView view = decode_height_image(p_image);
 	if (!view.is_valid()) {
 		return Ref<ArrayMesh>();
@@ -128,7 +128,7 @@ Ref<ArrayMesh> HeightmapMesher::build_hex_mesh(const Ref<Image> &p_image, const 
 	const int64_t cell_count = (int64_t)layout.cols * (int64_t)layout.rows;
 	const PackedSurface::Cursor floor_size = { p_floor ? FLOOR_VERTS : 0, p_floor ? FLOOR_INDICES : 0 };
 	PackedSurface surface(floor_size.vertex + cell_count * CELL_VERTS,
-						  floor_size.index + cell_count * CELL_INDICES, style.wants_color());
+			floor_size.index + cell_count * CELL_INDICES, style.wants_color());
 	if (p_floor) {
 		PackedSurface::Writer writer = surface.writer_at({ 0, 0 });
 		emit_hex_floor(writer, uv_map, layout, 1.0f - style.ao * FLOOR_AO_SPAN);
@@ -136,11 +136,11 @@ Ref<ArrayMesh> HeightmapMesher::build_hex_mesh(const Ref<Image> &p_image, const 
 	parallel_for_rows(layout.rows, [&](int p_begin, int p_end) {
 		const int64_t first_cell = (int64_t)p_begin * (int64_t)layout.cols;
 		PackedSurface::Writer writer = surface.writer_at({ floor_size.vertex + first_cell * CELL_VERTS,
-														   floor_size.index + first_cell * CELL_INDICES });
+				floor_size.index + first_cell * CELL_INDICES });
 		for (int j = p_begin; j < p_end; j++) {
 			for (int i = 0; i < layout.cols; i++) {
 				emit_hex_cell(writer, uv_map, view, layout, style, rim, i, j,
-							  p_height_scale, p_base_height, p_filter, p_height_power);
+						p_height_scale, p_base_height, p_filter, p_height_power);
 			}
 		}
 	});

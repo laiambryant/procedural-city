@@ -67,8 +67,8 @@ float sample_uv(const HeightImageView &p_view, float p_u, float p_v, int p_filte
 // applying the height_power remap (v^power; 1 = linear), base height, height
 // scale and the minimum-height clamp.
 bool resolve_cell_heights(const Ref<Image> &p_image, const CellGrid &p_grid,
-						  double p_height_scale, double p_base_height, int p_filter, std::vector<float> &r_heights,
-						  double p_height_power = 1.0);
+		double p_height_scale, double p_base_height, int p_filter, std::vector<float> &r_heights,
+		double p_height_power = 1.0);
 
 } // namespace godot
 

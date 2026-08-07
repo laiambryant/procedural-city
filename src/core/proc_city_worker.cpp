@@ -73,8 +73,8 @@ static const char *cli_display_name(int p_generation_mode) {
 // pipe closed, per-request error) transparently falls back to the one-shot CLI,
 // which itself still handles the exit-2 CPU fallback downstream.
 static Dictionary run_generation_bundle(const Ref<GoplacementxRunner> &p_runner, const String &p_binary,
-										const String &p_config, const Array &p_emits, const Ref<GoplacementxParams> &p_params,
-										int p_used_mode, bool p_use_server, int p_material_max_size, bool p_mipmaps) {
+		const String &p_config, const Array &p_emits, const Ref<GoplacementxParams> &p_params,
+		int p_used_mode, bool p_use_server, int p_material_max_size, bool p_mipmaps) {
 	if (is_legacy_gpu_mode(p_used_mode) && p_use_server) {
 		ProcCityGpuServer *server = ProcCityGpuServer::get_singleton();
 		if (server && server->ensure_started(p_binary)) {
@@ -95,10 +95,10 @@ static Dictionary run_generation_bundle(const Ref<GoplacementxRunner> &p_runner,
 // GPU->CPU fallback: reusing the GPU's .gdxraw paths would leave the CPU binary
 // writing PNG bytes into files that later fail the GDXR header check.
 static Array plan_emits_for_cli(const Ref<GoplacementxRunner> &p_runner, const Dictionary &p_job, const String &p_dir,
-								bool p_want_height, bool p_want_material, Dictionary &r_result) {
+		bool p_want_height, bool p_want_material, Dictionary &r_result) {
 	const String ext = map_extension_for((bool)p_job.get("keep_intermediate_png", false), p_runner->supports_gdxraw());
 	return plan_bundle_emits(p_dir, (uint64_t)(int64_t)p_job["seed"], p_want_height, p_want_material,
-							 p_job["texture_mode"], ext, r_result);
+			p_job["texture_mode"], ext, r_result);
 }
 
 static CliKind to_binary_provider_kind(int p_generation_mode) {
@@ -312,7 +312,7 @@ void ProcCityGenerator::_thread_body(Dictionary p_job) {
 	String fail_message;
 	StageTimer images_timer("material images");
 	if (!load_result_images(result, produced.run.get("images", Dictionary()), material_size, material_mipmaps,
-			fail_stage, fail_message)) {
+				fail_stage, fail_message)) {
 		call_deferred("_emit_failed", fail_stage, fail_message);
 		return;
 	}

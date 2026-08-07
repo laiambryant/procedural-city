@@ -135,9 +135,9 @@ Node3D *ProcCityGenerator::_make_hex_node() {
 	Ref<HeightmapMesher> mesher;
 	mesher.instantiate();
 	Ref<ArrayMesh> mesh = mesher->build_hex_mesh(_height_image, mesh_size, grid_vertices, height_scale, base_height,
-												 sample_filter, hive_warp, hive_jitter, hive_gap, _resolved_seed,
-												 hive_flat_rect, hive_rim_boost, hive_rim_falloff,
-												 height_power, ao_strength, color_variation, hive_floor);
+			sample_filter, hive_warp, hive_jitter, hive_gap, _resolved_seed,
+			hive_flat_rect, hive_rim_boost, hive_rim_falloff,
+			height_power, ao_strength, color_variation, hive_floor);
 	if (mesh.is_null()) {
 		_emit_failed("geometry", "Hex hive build failed.");
 		return nullptr;

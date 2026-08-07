@@ -56,17 +56,17 @@ public:
 	// of the cell per side, switching from merged blocks (shared walls culled)
 	// to freestanding buildings with streets and an automatic ground plane.
 	Ref<ArrayMesh> build_array_mesh(const Ref<Image> &p_image, const Vector2 &p_size, const Vector2i &p_verts,
-									double p_height_scale, double p_base_height, int p_filter,
-									double p_height_power = 1.0, double p_inset = 0.0,
-									int64_t p_seed = 0, double p_ao = 0.0, double p_variation = 0.0,
-									double p_clip_below_height = 0.0) const;
+			double p_height_scale, double p_base_height, int p_filter,
+			double p_height_power = 1.0, double p_inset = 0.0,
+			int64_t p_seed = 0, double p_ao = 0.0, double p_variation = 0.0,
+			double p_clip_below_height = 0.0) const;
 	// Native pipeline variant that returns the exact resolved heights consumed
 	// by the mesh, avoiding a second full-image sample for gameplay queries.
 	Ref<ArrayMesh> build_array_mesh_with_heights(const Ref<Image> &p_image, const Vector2 &p_size, const Vector2i &p_verts,
-											 double p_height_scale, double p_base_height, int p_filter,
-											 double p_height_power, double p_inset, int64_t p_seed,
-											 double p_ao, double p_variation, double p_clip_below_height,
-											 std::vector<float> &r_heights) const;
+			double p_height_scale, double p_base_height, int p_filter,
+			double p_height_power, double p_inset, int64_t p_seed,
+			double p_ao, double p_variation, double p_clip_below_height,
+			std::vector<float> &r_heights) const;
 	// Same geometry split into chunks x chunks meshes over disjoint cell rects,
 	// so the renderer can frustum- and occlusion-cull the city per tile instead
 	// of submitting one grid-wide mesh every frame, and each chunk's collision
@@ -74,16 +74,16 @@ public:
 	// height grid, so the union of the chunks is triangle-for-triangle what
 	// build_array_mesh_with_heights produces. Returned in row-major chunk order.
 	std::vector<Ref<ArrayMesh>> build_array_mesh_chunks(const Ref<Image> &p_image, const Vector2 &p_size,
-													  const Vector2i &p_verts, double p_height_scale, double p_base_height,
-													  int p_filter, double p_height_power, double p_inset, int64_t p_seed,
-													  double p_ao, double p_variation, double p_clip_below_height,
-													  int p_chunks, std::vector<float> &r_heights) const;
+			const Vector2i &p_verts, double p_height_scale, double p_base_height,
+			int p_filter, double p_height_power, double p_inset, int64_t p_seed,
+			double p_ao, double p_variation, double p_clip_below_height,
+			int p_chunks, std::vector<float> &r_heights) const;
 	// Script-facing form of the above, returning the tiles as an Array.
 	TypedArray<ArrayMesh> build_array_mesh_chunks_array(const Ref<Image> &p_image, const Vector2 &p_size,
-													   const Vector2i &p_verts, double p_height_scale, double p_base_height,
-													   int p_filter, double p_height_power, double p_inset, int64_t p_seed,
-													   double p_ao, double p_variation, double p_clip_below_height,
-													   int p_chunks) const;
+			const Vector2i &p_verts, double p_height_scale, double p_base_height,
+			int p_filter, double p_height_power, double p_inset, int64_t p_seed,
+			double p_ao, double p_variation, double p_clip_below_height,
+			int p_chunks) const;
 	// Hex-prism honeycomb backend: pointy-top hexagonal columns on an offset
 	// lattice, with domain-warped sampling and per-cell jitter so the result
 	// reads as grown comb rather than printed grid. warp/jitter in [0,1],
@@ -95,17 +95,17 @@ public:
 	// at y=0 so the gaps between cells read as alleys instead of holes.
 	// height_power as in build_array_mesh.
 	Ref<ArrayMesh> build_hex_mesh(const Ref<Image> &p_image, const Vector2 &p_size, const Vector2i &p_verts,
-								  double p_height_scale, double p_base_height, int p_filter,
-								  double p_warp, double p_jitter, double p_gap, int64_t p_seed,
-								  const Rect2 &p_flat_rect = Rect2(), double p_rim_boost = 0.0, double p_rim_falloff = 24.0,
-								  double p_height_power = 1.0,
-								  double p_ao = 0.0, double p_variation = 0.0, bool p_floor = false) const;
+			double p_height_scale, double p_base_height, int p_filter,
+			double p_warp, double p_jitter, double p_gap, int64_t p_seed,
+			const Rect2 &p_flat_rect = Rect2(), double p_rim_boost = 0.0, double p_rim_falloff = 24.0,
+			double p_height_power = 1.0,
+			double p_ao = 0.0, double p_variation = 0.0, bool p_floor = false) const;
 	Ref<MultiMesh> build_multimesh(const Ref<Image> &p_image, const Vector2 &p_size, const Vector2i &p_verts,
-								   double p_height_scale, double p_base_height, int p_filter,
-								   double p_height_power = 1.0, double p_inset = 0.0) const;
+			double p_height_scale, double p_base_height, int p_filter,
+			double p_height_power = 1.0, double p_inset = 0.0) const;
 	void build_csg(Node3D *p_parent, const Ref<Image> &p_image, const Vector2 &p_size, const Vector2i &p_verts,
-				   double p_height_scale, double p_base_height, int p_filter,
-				   double p_height_power = 1.0, double p_inset = 0.0) const;
+			double p_height_scale, double p_base_height, int p_filter,
+			double p_height_power = 1.0, double p_inset = 0.0) const;
 
 	HeightmapMesher() {}
 	~HeightmapMesher() {}

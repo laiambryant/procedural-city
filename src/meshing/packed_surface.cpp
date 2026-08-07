@@ -21,7 +21,7 @@ PackedSurface::PackedSurface(int64_t p_vertex_count, int64_t p_index_count, bool
 }
 
 int32_t PackedSurface::Writer::push_vertex(const Vector3 &p_pos, const Vector2 &p_uv, const Color &p_col,
-										   const Vector3 &p_normal, const Vector3 &p_tangent, float p_tangent_w) {
+		const Vector3 &p_normal, const Vector3 &p_tangent, float p_tangent_w) {
 	surface.vp[vi] = p_pos;
 	surface.np[vi] = p_normal;
 	surface.uvp[vi] = p_uv;
@@ -43,7 +43,7 @@ void PackedSurface::Writer::push_triangle(int32_t p_a, int32_t p_b, int32_t p_c)
 }
 
 void PackedSurface::Writer::quad(const Vector3 p_pos[4], const Vector2 p_uv[4], const Color p_col[4],
-								 const Vector3 &p_normal, const Vector3 &p_tangent, float p_tangent_w) {
+		const Vector3 &p_normal, const Vector3 &p_tangent, float p_tangent_w) {
 	const int32_t a = push_vertex(p_pos[0], p_uv[0], p_col[0], p_normal, p_tangent, p_tangent_w);
 	const int32_t b = push_vertex(p_pos[1], p_uv[1], p_col[1], p_normal, p_tangent, p_tangent_w);
 	const int32_t c = push_vertex(p_pos[2], p_uv[2], p_col[2], p_normal, p_tangent, p_tangent_w);
@@ -53,7 +53,7 @@ void PackedSurface::Writer::quad(const Vector3 p_pos[4], const Vector2 p_uv[4], 
 }
 
 void PackedSurface::Writer::fan(const Vector3 *p_pos, const Vector2 *p_uv, int p_corners, const Color &p_col,
-								const Vector3 &p_normal, const Vector3 &p_tangent, float p_tangent_w) {
+		const Vector3 &p_normal, const Vector3 &p_tangent, float p_tangent_w) {
 	const int32_t base = push_vertex(p_pos[0], p_uv[0], p_col, p_normal, p_tangent, p_tangent_w);
 	for (int k = 1; k < p_corners; k++) {
 		push_vertex(p_pos[k], p_uv[k], p_col, p_normal, p_tangent, p_tangent_w);

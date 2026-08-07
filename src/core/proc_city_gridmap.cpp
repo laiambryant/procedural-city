@@ -116,7 +116,7 @@ Node3D *ProcCityGenerator::_make_gridmap_node() {
 	GridMapPlan plan;
 	String error;
 	if (!build_gridmap_plan(_height_image, mesh_size, grid_vertices, height_scale, base_height, sample_filter,
-							height_power, gridmap_level_height, gridmap_fill_columns, plan, error)) {
+				height_power, gridmap_level_height, gridmap_fill_columns, plan, error)) {
 		_emit_failed("geometry", error);
 		return nullptr;
 	}

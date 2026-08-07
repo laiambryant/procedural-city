@@ -99,7 +99,7 @@ static String http_failure(const HttpResponse &p_response) {
 // fetch_latest_release resolves the newest release of p_repo to a downloadable
 // asset URL for this platform, reporting r_tag and whether it is a zip.
 static String fetch_latest_release_asset(const String &p_repo, const String &p_display, const PlatformInfo &p_platform,
-										 String &r_tag, bool &r_zip) {
+		String &r_tag, bool &r_zip) {
 	const String api_url = String("https://api.github.com/repos/") + p_repo + "/releases/latest";
 	UtilityFunctions::print("[ProcCity] Looking up the latest " + p_display + " release...");
 	const HttpResponse api = http_get(api_url, "application/vnd.github+json", MAX_API_REDIRECTS);
@@ -131,7 +131,7 @@ static PackedByteArray unpack_binary(const PackedByteArray &p_archive, bool p_zi
 }
 
 String godot::download_latest_release(const String &p_cache_dir, const PlatformInfo &p_platform,
-									  const String &p_binary_name, const String &p_repo, const String &p_display_name) {
+		const String &p_binary_name, const String &p_repo, const String &p_display_name) {
 	if (p_platform.arch.is_empty()) {
 		UtilityFunctions::push_warning("[ProcCity] Unsupported CPU architecture for " + p_display_name + " auto-download.");
 		return String();

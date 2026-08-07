@@ -8,8 +8,8 @@ namespace godot {
 // PlatformInfo is the running platform expressed the way the release assets
 // name it, plus the addon subdirectory a bundled binary would ship in.
 struct PlatformInfo {
-	String os;		   // release asset OS token: windows / linux / darwin
-	String arch;	   // release asset arch token: amd64 / arm64
+	String os; // release asset OS token: windows / linux / darwin
+	String arch; // release asset arch token: amd64 / arm64
 	String exe_suffix; // ".exe" on Windows
 	String bundle_dir; // addon subdirectory the binary ships in
 };
@@ -22,7 +22,7 @@ PlatformInfo detect_platform();
 // this runs on a worker thread where a hard failure would take the editor with
 // it, and every caller has a working fallback.
 String download_latest_release(const String &p_cache_dir, const PlatformInfo &p_platform,
-							   const String &p_binary_name, const String &p_repo, const String &p_display_name);
+		const String &p_binary_name, const String &p_repo, const String &p_display_name);
 
 } // namespace godot
 

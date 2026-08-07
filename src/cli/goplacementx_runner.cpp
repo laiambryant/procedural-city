@@ -24,9 +24,9 @@ void GoplacementxRunner::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("write_config", "dir", "params"), &GoplacementxRunner::write_config);
 	ClassDB::bind_method(D_METHOD("resolve_seed", "params"), &GoplacementxRunner::resolve_seed);
 	ClassDB::bind_method(D_METHOD("run_generate", "binary", "config", "mode", "seed", "out_png", "params"),
-						 &GoplacementxRunner::run_generate);
+			&GoplacementxRunner::run_generate);
 	ClassDB::bind_method(D_METHOD("run_bundle", "binary", "config", "emits", "params"),
-						 &GoplacementxRunner::run_bundle);
+			&GoplacementxRunner::run_bundle);
 }
 
 // append_size_flags appends either explicit --width/--height (when both are set)
@@ -125,7 +125,7 @@ int64_t GoplacementxRunner::resolve_seed(const Ref<GoplacementxParams> &p_params
 }
 
 Dictionary GoplacementxRunner::run_generate(const String &p_binary, const String &p_config, const String &p_mode,
-											int64_t p_seed, const String &p_out_png, const Ref<GoplacementxParams> &p_params) const {
+		int64_t p_seed, const String &p_out_png, const Ref<GoplacementxParams> &p_params) const {
 	PackedStringArray args;
 	args.push_back("generate");
 	args.push_back("--config");
@@ -149,7 +149,7 @@ Dictionary GoplacementxRunner::run_generate(const String &p_binary, const String
 }
 
 Dictionary GoplacementxRunner::run_bundle(const String &p_binary, const String &p_config,
-										  const Array &p_emits, const Ref<GoplacementxParams> &p_params) const {
+		const Array &p_emits, const Ref<GoplacementxParams> &p_params) const {
 	PackedStringArray args;
 	args.push_back("bundle");
 	args.push_back("--config");

@@ -16,22 +16,22 @@ using namespace godot;
 
 void HeightmapMesher::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("sample_height", "image", "i", "j", "cols", "rows", "filter"),
-						 &HeightmapMesher::sample_height);
+			&HeightmapMesher::sample_height);
 	ClassDB::bind_method(D_METHOD("build_array_mesh", "image", "size", "verts", "height_scale", "base_height", "filter", "height_power", "inset", "seed", "ao", "variation", "clip_below_height"),
-						 &HeightmapMesher::build_array_mesh,
-						 DEFVAL(1.0), DEFVAL(0.0), DEFVAL(0), DEFVAL(0.0), DEFVAL(0.0), DEFVAL(0.0));
+			&HeightmapMesher::build_array_mesh,
+			DEFVAL(1.0), DEFVAL(0.0), DEFVAL(0), DEFVAL(0.0), DEFVAL(0.0), DEFVAL(0.0));
 	ClassDB::bind_method(D_METHOD("build_hex_mesh", "image", "size", "verts", "height_scale", "base_height", "filter", "warp", "jitter", "gap", "seed", "flat_rect", "rim_boost", "rim_falloff", "height_power", "ao", "variation", "floor"),
-						 &HeightmapMesher::build_hex_mesh,
-						 DEFVAL(Rect2()), DEFVAL(0.0), DEFVAL(24.0), DEFVAL(1.0), DEFVAL(0.0), DEFVAL(0.0), DEFVAL(false));
+			&HeightmapMesher::build_hex_mesh,
+			DEFVAL(Rect2()), DEFVAL(0.0), DEFVAL(24.0), DEFVAL(1.0), DEFVAL(0.0), DEFVAL(0.0), DEFVAL(false));
 	ClassDB::bind_method(D_METHOD("build_array_mesh_chunks", "image", "size", "verts", "height_scale", "base_height", "filter", "height_power", "inset", "seed", "ao", "variation", "clip_below_height", "chunks"),
-						 &HeightmapMesher::build_array_mesh_chunks_array,
-						 DEFVAL(1.0), DEFVAL(0.0), DEFVAL(0), DEFVAL(0.0), DEFVAL(0.0), DEFVAL(0.0), DEFVAL(1));
+			&HeightmapMesher::build_array_mesh_chunks_array,
+			DEFVAL(1.0), DEFVAL(0.0), DEFVAL(0), DEFVAL(0.0), DEFVAL(0.0), DEFVAL(0.0), DEFVAL(1));
 	ClassDB::bind_method(D_METHOD("build_multimesh", "image", "size", "verts", "height_scale", "base_height", "filter", "height_power", "inset"),
-						 &HeightmapMesher::build_multimesh,
-						 DEFVAL(1.0), DEFVAL(0.0));
+			&HeightmapMesher::build_multimesh,
+			DEFVAL(1.0), DEFVAL(0.0));
 	ClassDB::bind_method(D_METHOD("build_csg", "parent", "image", "size", "verts", "height_scale", "base_height", "filter", "height_power", "inset"),
-						 &HeightmapMesher::build_csg,
-						 DEFVAL(1.0), DEFVAL(0.0));
+			&HeightmapMesher::build_csg,
+			DEFVAL(1.0), DEFVAL(0.0));
 
 	BIND_ENUM_CONSTANT(FILTER_NEAREST);
 	BIND_ENUM_CONSTANT(FILTER_BOX_AVERAGE);
@@ -50,7 +50,7 @@ float HeightmapMesher::sample_height(const Ref<Image> &p_image, int p_i, int p_j
 static constexpr int64_t INSTANCE_TRANSFORM_FLOATS = 12;
 
 static void write_instance_transform(float *p_out, float p_sx, float p_sy, float p_sz,
-									 float p_x, float p_y, float p_z) {
+		float p_x, float p_y, float p_z) {
 	p_out[0] = p_sx;
 	p_out[1] = 0.0f;
 	p_out[2] = 0.0f;
@@ -66,7 +66,7 @@ static void write_instance_transform(float *p_out, float p_sx, float p_sy, float
 }
 
 Ref<MultiMesh> HeightmapMesher::build_multimesh(const Ref<Image> &p_image, const Vector2 &p_size, const Vector2i &p_verts,
-												double p_height_scale, double p_base_height, int p_filter, double p_height_power, double p_inset) const {
+		double p_height_scale, double p_base_height, int p_filter, double p_height_power, double p_inset) const {
 	const CellGrid grid = make_cell_grid(p_size, p_verts);
 	std::vector<float> heights;
 	if (!resolve_cell_heights(p_image, grid, p_height_scale, p_base_height, p_filter, heights, p_height_power)) {
@@ -106,7 +106,7 @@ Ref<MultiMesh> HeightmapMesher::build_multimesh(const Ref<Image> &p_image, const
 }
 
 void HeightmapMesher::build_csg(Node3D *p_parent, const Ref<Image> &p_image, const Vector2 &p_size, const Vector2i &p_verts,
-								double p_height_scale, double p_base_height, int p_filter, double p_height_power, double p_inset) const {
+		double p_height_scale, double p_base_height, int p_filter, double p_height_power, double p_inset) const {
 	if (p_parent == nullptr) {
 		return;
 	}

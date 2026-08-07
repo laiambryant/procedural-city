@@ -26,7 +26,7 @@ static int levels_for_height(float p_height, float p_level_height) {
 // cell is placed: a bad level height can ask for orders of magnitude more cells
 // than the column count hints at, and that has to be caught before the reserve.
 static void measure_columns(const std::vector<float> &p_heights, float p_level_height, bool p_fill_columns,
-							std::vector<int> &r_levels, int64_t &r_total, int &r_tallest) {
+		std::vector<int> &r_levels, int64_t &r_total, int &r_tallest) {
 	r_levels.resize(p_heights.size());
 	r_total = 0;
 	r_tallest = 0;
@@ -39,8 +39,8 @@ static void measure_columns(const std::vector<float> &p_heights, float p_level_h
 }
 
 bool godot::build_gridmap_plan(const Ref<Image> &p_image, const Vector2 &p_size, const Vector2i &p_verts,
-							   double p_height_scale, double p_base_height, int p_filter, double p_height_power,
-							   double p_level_height, bool p_fill_columns, GridMapPlan &r_plan, String &r_error) {
+		double p_height_scale, double p_base_height, int p_filter, double p_height_power,
+		double p_level_height, bool p_fill_columns, GridMapPlan &r_plan, String &r_error) {
 	const CellGrid grid = make_cell_grid(p_size, p_verts);
 
 	float level_height = (float)p_level_height;
@@ -64,7 +64,7 @@ bool godot::build_gridmap_plan(const Ref<Image> &p_image, const Vector2 &p_size,
 	measure_columns(heights, level_height, p_fill_columns, column_levels, total, tallest);
 	if (total > GRIDMAP_MAX_CELLS) {
 		r_error = String("GridMap plan needs ") + String::num_int64(total) + String(" cells, over the ") +
-				  String::num_int64(GRIDMAP_MAX_CELLS) + String(" limit. Raise GridMap Level Height, lower Grid Vertices, or turn off GridMap Fill Columns.");
+				String::num_int64(GRIDMAP_MAX_CELLS) + String(" limit. Raise GridMap Level Height, lower Grid Vertices, or turn off GridMap Fill Columns.");
 		return false;
 	}
 

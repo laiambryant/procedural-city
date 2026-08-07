@@ -3,8 +3,8 @@
 #include "cli/gdxraw_loader.h"
 #include "core/proc_city_generator.h"
 #include "material/city_material_builder.h"
-#include "meshing/heightmap_mesher.h"
 #include "meshing/height_sampling.h"
+#include "meshing/heightmap_mesher.h"
 
 #include <godot_cpp/classes/array_mesh.hpp>
 #include <godot_cpp/classes/file_access.hpp>
@@ -68,7 +68,7 @@ static void add_albedo_normal_emits(Array &r_emits, const String &p_base, uint64
 }
 
 Array godot::plan_bundle_emits(const String &p_dir, uint64_t p_base_seed, bool p_want_height, bool p_want_material,
-							   int p_texture_mode, const String &p_ext, Dictionary &r_result) {
+		int p_texture_mode, const String &p_ext, Dictionary &r_result) {
 	const uint64_t stamp = Time::get_singleton()->get_ticks_usec();
 	const String base = p_dir.path_join("proc_city_" + String::num_uint64(stamp));
 
@@ -221,16 +221,16 @@ static Dictionary cell_height_result(const Dictionary &p_job, const std::vector<
 // always one mesh; blocks honour geometry_chunks, so a chunked city has its
 // tiles built on the worker exactly like the single mesh they replace.
 static TypedArray<ArrayMesh> build_job_meshes(const Dictionary &p_job, const Ref<Image> &p_height, int p_mode,
-											  Dictionary &r_result) {
+		Dictionary &r_result) {
 	Ref<HeightmapMesher> mesher;
 	mesher.instantiate();
 	TypedArray<ArrayMesh> out;
 	if (p_mode == ProcCityGenerator::BUILD_HEX) {
 		Ref<ArrayMesh> hex = mesher->build_hex_mesh(p_height, p_job["mesh_size"], p_job["grid_vertices"],
-									  p_job["height_scale"], p_job["base_height"], p_job["sample_filter"],
-									  p_job["hive_warp"], p_job["hive_jitter"], p_job["hive_gap"], (int64_t)p_job["seed"],
-									  p_job["hive_flat_rect"], p_job["hive_rim_boost"], p_job["hive_rim_falloff"],
-									  p_job["height_power"], p_job["ao_strength"], p_job["color_variation"], p_job["hive_floor"]);
+				p_job["height_scale"], p_job["base_height"], p_job["sample_filter"],
+				p_job["hive_warp"], p_job["hive_jitter"], p_job["hive_gap"], (int64_t)p_job["seed"],
+				p_job["hive_flat_rect"], p_job["hive_rim_boost"], p_job["hive_rim_falloff"],
+				p_job["height_power"], p_job["ao_strength"], p_job["color_variation"], p_job["hive_floor"]);
 		if (hex.is_valid()) {
 			out.push_back(hex);
 		}

@@ -47,7 +47,7 @@ Array HiveGenCore::_rooms_along_path(const std::vector<Vector2i> &p_path) const 
 // The boss room takes a free neighbour of the reward cell, preferring the
 // walk's forward side. Fails when the reward cell is fully surrounded.
 bool HiveGenCore::_append_boss_room(const Ref<RandomNumberGenerator> &p_rng, Array &r_rooms,
-									int p_heading, CellSet &r_occupied) const {
+		int p_heading, CellSet &r_occupied) const {
 	Dictionary reward = r_rooms[r_rooms.size() - 1];
 	const int boss_dir = _free_side(p_rng, reward["cell"], p_heading, r_occupied);
 	if (boss_dir < 0) {
@@ -64,7 +64,7 @@ bool HiveGenCore::_append_boss_room(const Ref<RandomNumberGenerator> &p_rng, Arr
 // Branches hang off shuffled mid-path combat cells. Missing space is tolerated
 // (a floor without branches is valid, just less generous).
 void HiveGenCore::_append_branch_rooms(const Ref<RandomNumberGenerator> &p_rng, Array &r_rooms,
-									   int p_branch_count, CellSet &r_occupied) const {
+		int p_branch_count, CellSet &r_occupied) const {
 	const String branch_kinds[2] = { String("branch_treasure"), String("branch_altar") };
 	Array hosts;
 	for (int i = 0; i < r_rooms.size(); i++) {
@@ -97,7 +97,7 @@ void HiveGenCore::_append_branch_rooms(const Ref<RandomNumberGenerator> &p_rng, 
 // no dedicated template falls back to the combat pool. Fails when a required
 // role has no usable template at all.
 bool HiveGenCore::_assign_room_templates(const Ref<RandomNumberGenerator> &p_rng, Array &r_rooms,
-										 const Array &p_pool_data) const {
+		const Array &p_pool_data) const {
 	int previous_combat = -1;
 	for (int i = 0; i < r_rooms.size(); i++) {
 		Dictionary room = r_rooms[i];
@@ -140,7 +140,7 @@ void HiveGenCore::_connect_rooms(Dictionary p_room_a, Dictionary p_room_b) const
 // Weighted template pick among pool entries of the given kind, avoiding
 // `avoid_index` when alternatives exist. -1 when the kind has no usable entry.
 int HiveGenCore::_pick_template(const Ref<RandomNumberGenerator> &p_rng, const Array &p_pool_data,
-								const String &p_kind, int p_avoid_index) const {
+		const String &p_kind, int p_avoid_index) const {
 	std::vector<int> candidates;
 	for (int i = 0; i < p_pool_data.size(); i++) {
 		Dictionary entry = p_pool_data[i];

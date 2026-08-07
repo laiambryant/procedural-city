@@ -1,6 +1,7 @@
 #ifndef PROC_CITY_GENERATOR_H
 #define PROC_CITY_GENERATOR_H
 
+#include <godot_cpp/classes/array_mesh.hpp>
 #include <godot_cpp/classes/image.hpp>
 #include <godot_cpp/classes/material.hpp>
 #include <godot_cpp/classes/mesh_library.hpp>
@@ -8,12 +9,11 @@
 #include <godot_cpp/classes/thread.hpp>
 #include <godot_cpp/core/binder_common.hpp>
 #include <godot_cpp/core/property_info.hpp>
-#include <godot_cpp/classes/array_mesh.hpp>
 #include <godot_cpp/variant/callable.hpp>
 #include <godot_cpp/variant/dictionary.hpp>
 #include <godot_cpp/variant/rect2.hpp>
-#include <godot_cpp/variant/typed_array.hpp>
 #include <godot_cpp/variant/string.hpp>
+#include <godot_cpp/variant/typed_array.hpp>
 #include <godot_cpp/variant/vector2.hpp>
 #include <godot_cpp/variant/vector2i.hpp>
 #include <godot_cpp/variant/vector3.hpp>
@@ -61,8 +61,8 @@ public:
 		MATERIAL_ORM = 1,
 	};
 	enum TextureMode {
-		TEX_SINGLE = 0,	  // one colour map -> Albedo; scalar roughness/metallic
-		TEX_SHARED = 1,	  // one map -> Albedo (colour) + Roughness + Height
+		TEX_SINGLE = 0, // one colour map -> Albedo; scalar roughness/metallic
+		TEX_SHARED = 1, // one map -> Albedo (colour) + Roughness + Height
 		TEX_CHANNELS = 2, // five maps -> R, G, B, Roughness, Height
 	};
 	enum TextureFilter {
@@ -207,26 +207,50 @@ protected:
 public:
 	void set_params(const Ref<GoplacementxParams> &p_params);
 	Ref<GoplacementxParams> get_params() const;
-	void set_mesh_size(const Vector2 &p_size) { mesh_size = p_size; _invalidate_cell_heights_cache(); }
+	void set_mesh_size(const Vector2 &p_size) {
+		mesh_size = p_size;
+		_invalidate_cell_heights_cache();
+	}
 	Vector2 get_mesh_size() const { return mesh_size; }
-	void set_grid_vertices(const Vector2i &p_v) { grid_vertices = p_v; _invalidate_cell_heights_cache(); }
+	void set_grid_vertices(const Vector2i &p_v) {
+		grid_vertices = p_v;
+		_invalidate_cell_heights_cache();
+	}
 	Vector2i get_grid_vertices() const { return grid_vertices; }
-	void set_height_scale(double p_v) { height_scale = p_v; _invalidate_cell_heights_cache(); }
+	void set_height_scale(double p_v) {
+		height_scale = p_v;
+		_invalidate_cell_heights_cache();
+	}
 	double get_height_scale() const { return height_scale; }
-	void set_base_height(double p_v) { base_height = p_v; _invalidate_cell_heights_cache(); }
+	void set_base_height(double p_v) {
+		base_height = p_v;
+		_invalidate_cell_heights_cache();
+	}
 	double get_base_height() const { return base_height; }
-	void set_height_power(double p_v) { height_power = p_v; _invalidate_cell_heights_cache(); }
+	void set_height_power(double p_v) {
+		height_power = p_v;
+		_invalidate_cell_heights_cache();
+	}
 	double get_height_power() const { return height_power; }
 	void set_block_inset(double p_v) { block_inset = p_v; }
 	double get_block_inset() const { return block_inset; }
 	void set_clip_below_height(double p_v) { clip_below_height = p_v; }
 	double get_clip_below_height() const { return clip_below_height; }
-	void set_build_mode(int p_v) { build_mode = p_v; notify_property_list_changed(); }
+	void set_build_mode(int p_v) {
+		build_mode = p_v;
+		notify_property_list_changed();
+	}
 	int get_build_mode() const { return build_mode; }
-	void set_generation_mode(int p_v) { generation_mode = p_v; notify_property_list_changed(); }
+	void set_generation_mode(int p_v) {
+		generation_mode = p_v;
+		notify_property_list_changed();
+	}
 	int get_generation_mode() const { return generation_mode; }
 	int get_last_generation_mode_used() const { return _last_generation_used; }
-	void set_sample_filter(int p_v) { sample_filter = p_v; _invalidate_cell_heights_cache(); }
+	void set_sample_filter(int p_v) {
+		sample_filter = p_v;
+		_invalidate_cell_heights_cache();
+	}
 	int get_sample_filter() const { return sample_filter; }
 	void set_max_cells(int p_v) { max_cells = p_v; }
 	int get_max_cells() const { return max_cells; }
@@ -242,7 +266,10 @@ public:
 	double get_hive_gap() const { return hive_gap; }
 	void set_hive_flat_rect(const Rect2 &p_v) { hive_flat_rect = p_v; }
 	Rect2 get_hive_flat_rect() const { return hive_flat_rect; }
-	void set_hive_rim_boost(double p_v) { hive_rim_boost = p_v; notify_property_list_changed(); }
+	void set_hive_rim_boost(double p_v) {
+		hive_rim_boost = p_v;
+		notify_property_list_changed();
+	}
 	double get_hive_rim_boost() const { return hive_rim_boost; }
 	void set_hive_rim_falloff(double p_v) { hive_rim_falloff = p_v; }
 	double get_hive_rim_falloff() const { return hive_rim_falloff; }
@@ -252,7 +279,10 @@ public:
 	double get_gridmap_level_height() const { return gridmap_level_height; }
 	void set_gridmap_fill_columns(bool p_v) { gridmap_fill_columns = p_v; }
 	bool get_gridmap_fill_columns() const { return gridmap_fill_columns; }
-	void set_gridmap_mesh_library(const Ref<MeshLibrary> &p_v) { gridmap_mesh_library = p_v; notify_property_list_changed(); }
+	void set_gridmap_mesh_library(const Ref<MeshLibrary> &p_v) {
+		gridmap_mesh_library = p_v;
+		notify_property_list_changed();
+	}
 	Ref<MeshLibrary> get_gridmap_mesh_library() const { return gridmap_mesh_library; }
 	void set_gridmap_item_id(int p_v) { gridmap_item_id = p_v; }
 	int get_gridmap_item_id() const { return gridmap_item_id; }
@@ -262,7 +292,10 @@ public:
 	double get_color_variation() const { return color_variation; }
 	void set_material_mode(int p_v) { material_mode = p_v; }
 	int get_material_mode() const { return material_mode; }
-	void set_texture_mode(int p_v) { texture_mode = p_v; notify_property_list_changed(); }
+	void set_texture_mode(int p_v) {
+		texture_mode = p_v;
+		notify_property_list_changed();
+	}
 	int get_texture_mode() const { return texture_mode; }
 	void set_normal_strength(double p_v) { normal_strength = p_v; }
 	double get_normal_strength() const { return normal_strength; }
@@ -280,11 +313,17 @@ public:
 	bool get_texture_repeat() const { return texture_repeat; }
 	void set_keep_intermediate_png(bool p_v) { keep_intermediate_png = p_v; }
 	bool get_keep_intermediate_png() const { return keep_intermediate_png; }
-	void set_persist_in_scene(bool p_v) { persist_in_scene = p_v; notify_property_list_changed(); }
+	void set_persist_in_scene(bool p_v) {
+		persist_in_scene = p_v;
+		notify_property_list_changed();
+	}
 	bool get_persist_in_scene() const { return persist_in_scene; }
 	void set_external_resource_dir(const String &p_v) { external_resource_dir = p_v; }
 	String get_external_resource_dir() const { return external_resource_dir; }
-	void set_generate_collision(bool p_v) { generate_collision = p_v; notify_property_list_changed(); }
+	void set_generate_collision(bool p_v) {
+		generate_collision = p_v;
+		notify_property_list_changed();
+	}
 	bool get_generate_collision() const { return generate_collision; }
 	void set_collision_layer(int p_v) { collision_layer = p_v; }
 	int get_collision_layer() const { return collision_layer; }
@@ -297,7 +336,10 @@ public:
 	void set_output_dir(const String &p_v) { output_dir = p_v; }
 	String get_output_dir() const { return output_dir; }
 
-	void set_height_image(const Ref<Image> &p_image) { _height_image = p_image; _invalidate_cell_heights_cache(); }
+	void set_height_image(const Ref<Image> &p_image) {
+		_height_image = p_image;
+		_invalidate_cell_heights_cache();
+	}
 	Ref<Image> get_height_image() const { return _height_image; }
 
 	Dictionary get_cell_heights() const;

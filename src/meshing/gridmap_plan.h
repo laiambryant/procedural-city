@@ -43,8 +43,8 @@ struct GridMapPlan {
 // r_error when the height image is unusable or the plan would exceed
 // GRIDMAP_MAX_CELLS.
 bool build_gridmap_plan(const Ref<Image> &p_image, const Vector2 &p_size, const Vector2i &p_verts,
-						double p_height_scale, double p_base_height, int p_filter, double p_height_power,
-						double p_level_height, bool p_fill_columns, GridMapPlan &r_plan, String &r_error);
+		double p_height_scale, double p_base_height, int p_filter, double p_height_power,
+		double p_level_height, bool p_fill_columns, GridMapPlan &r_plan, String &r_error);
 
 } // namespace godot
 

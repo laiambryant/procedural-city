@@ -56,7 +56,7 @@ static Array names_from_mask(int p_mask, const char *const *p_names, int p_count
 }
 
 static void read_mask(const Dictionary &p_dict, const char *p_key,
-					  const char *const *p_names, int p_count, int &r_mask) {
+		const char *const *p_names, int p_count, int &r_mask) {
 	if (!p_dict.has(p_key)) {
 		return;
 	}

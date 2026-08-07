@@ -17,7 +17,7 @@ namespace godot {
 // format (see map_extension_for), which depends on the CLI that will run, so
 // this has to be re-planned if the pipeline switches binaries mid-run.
 Array plan_bundle_emits(const String &p_dir, uint64_t p_base_seed, bool p_want_height, bool p_want_material,
-						int p_texture_mode, const String &p_ext, Dictionary &r_result);
+		int p_texture_mode, const String &p_ext, Dictionary &r_result);
 
 // load_result_images fills each result image slot from the maps produced by
 // plan_bundle_emits. Maps returned in-memory by the GPU server (keyed by their

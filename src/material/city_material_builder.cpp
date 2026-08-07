@@ -103,8 +103,8 @@ Ref<Image> godot::compose_rgb_albedo(const Ref<Image> &p_r, const Ref<Image> &p_
 	const int w = p_r->get_width();
 	const int h = p_r->get_height();
 	if (w <= 0 || h <= 0 ||
-		p_g->get_width() != w || p_g->get_height() != h ||
-		p_b->get_width() != w || p_b->get_height() != h) {
+			p_g->get_width() != w || p_g->get_height() != h ||
+			p_b->get_width() != w || p_b->get_height() != h) {
 		UtilityFunctions::push_warning("[ProcCity] R/G/B channel maps have mismatched sizes; cannot compose albedo.");
 		return Ref<Image>();
 	}
@@ -119,11 +119,19 @@ Ref<Image> godot::compose_rgb_albedo(const Ref<Image> &p_r, const Ref<Image> &p_
 		out.image = p_source;
 		switch (out.image->get_format()) {
 			case Image::FORMAT_L8:
-			case Image::FORMAT_R8: out.stride = 1; break;
+			case Image::FORMAT_R8:
+				out.stride = 1;
+				break;
 			case Image::FORMAT_LA8:
-			case Image::FORMAT_RG8: out.stride = 2; break;
-			case Image::FORMAT_RGB8: out.stride = 3; break;
-			case Image::FORMAT_RGBA8: out.stride = 4; break;
+			case Image::FORMAT_RG8:
+				out.stride = 2;
+				break;
+			case Image::FORMAT_RGB8:
+				out.stride = 3;
+				break;
+			case Image::FORMAT_RGBA8:
+				out.stride = 4;
+				break;
 			default:
 				out.image = p_source->duplicate();
 				out.image->convert(Image::FORMAT_RGBA8);

@@ -15,7 +15,7 @@ using namespace godot;
 namespace {
 
 void emit_roof(PackedSurface::Writer &p_writer, const BlockUvMap &p_uv_map, const BlockShader &p_shader,
-			   const CellBounds &p_b, float p_top) {
+		const CellBounds &p_b, float p_top) {
 	const Vector3 pos[4] = {
 		Vector3(p_b.x0, p_top, p_b.z0), Vector3(p_b.x1, p_top, p_b.z0),
 		Vector3(p_b.x1, p_top, p_b.z1), Vector3(p_b.x0, p_top, p_b.z1)
@@ -32,7 +32,7 @@ void emit_roof(PackedSurface::Writer &p_writer, const BlockUvMap &p_uv_map, cons
 }
 
 void emit_wall(PackedSurface::Writer &p_writer, const BlockUvMap &p_uv_map, const BlockShader &p_shader,
-			   const WallFace &p_face, float p_top) {
+		const WallFace &p_face, float p_top) {
 	const Vector3 pos[4] = {
 		p_face.bottom_a, p_face.bottom_b,
 		Vector3(p_face.bottom_b.x, p_top, p_face.bottom_b.z), Vector3(p_face.bottom_a.x, p_top, p_face.bottom_a.z)
@@ -48,8 +48,8 @@ void emit_wall(PackedSurface::Writer &p_writer, const BlockUvMap &p_uv_map, cons
 }
 
 void emit_cell(PackedSurface::Writer &p_writer, const BlockUvMap &p_uv_map,
-			   const std::vector<float> &p_heights, const CellGrid &p_grid, const BlockStyle &p_style,
-			   int p_i, int p_j, float p_inset, bool p_freestanding, float p_clip_below_height) {
+		const std::vector<float> &p_heights, const CellGrid &p_grid, const BlockStyle &p_style,
+		int p_i, int p_j, float p_inset, bool p_freestanding, float p_clip_below_height) {
 	const float top = height_at(p_heights, p_grid, p_i, p_j);
 	if (top <= p_clip_below_height) {
 		return;
@@ -69,7 +69,7 @@ void emit_cell(PackedSurface::Writer &p_writer, const BlockUvMap &p_uv_map,
 // its own patch so it culls with the chunk instead of keeping a grid-wide quad
 // (and its whole AABB) permanently visible.
 void emit_ground(PackedSurface::Writer &p_writer, const BlockUvMap &p_uv_map, const CellGrid &p_grid,
-				 const CellRect &p_rect, float p_y) {
+		const CellRect &p_rect, float p_y) {
 	const float x0 = p_grid.ox + p_grid.cw * (float)p_rect.i0;
 	const float x1 = p_grid.ox + p_grid.cw * (float)p_rect.i1;
 	const float z0 = p_grid.oz + p_grid.cd * (float)p_rect.j0;
@@ -90,9 +90,9 @@ void emit_ground(PackedSurface::Writer &p_writer, const BlockUvMap &p_uv_map, co
 } // namespace
 
 Ref<ArrayMesh> HeightmapMesher::build_array_mesh(const Ref<Image> &p_image, const Vector2 &p_size, const Vector2i &p_verts,
-												 double p_height_scale, double p_base_height, int p_filter,
-												 double p_height_power, double p_inset, int64_t p_seed, double p_ao,
-												 double p_variation, double p_clip_below_height) const {
+		double p_height_scale, double p_base_height, int p_filter,
+		double p_height_power, double p_inset, int64_t p_seed, double p_ao,
+		double p_variation, double p_clip_below_height) const {
 	std::vector<float> heights;
 	return build_array_mesh_with_heights(p_image, p_size, p_verts, p_height_scale, p_base_height, p_filter,
 			p_height_power, p_inset, p_seed, p_ao, p_variation, p_clip_below_height, heights);
@@ -102,8 +102,8 @@ Ref<ArrayMesh> HeightmapMesher::build_array_mesh(const Ref<Image> &p_image, cons
 // culling reads the whole height grid, so a mesh built per chunk is identical,
 // triangle for triangle, to the corresponding slice of the single-mesh build.
 static Ref<ArrayMesh> build_rect_mesh(const std::vector<float> &p_heights, const CellGrid &p_grid,
-									  const BlockStyle &p_style, const BlockUvMap &p_uv_map, const CellRect &p_rect,
-									  float p_inset, bool p_freestanding, float p_clip_below) {
+		const BlockStyle &p_style, const BlockUvMap &p_uv_map, const CellRect &p_rect,
+		float p_inset, bool p_freestanding, float p_clip_below) {
 	const std::vector<int64_t> offsets = row_quad_offsets(p_heights, p_grid, p_freestanding, p_clip_below, p_rect);
 	const int64_t block_quads = offsets[(size_t)p_rect.rows()];
 	const int64_t total_quads = block_quads + (p_freestanding ? 1 : 0);
@@ -116,7 +116,7 @@ static Ref<ArrayMesh> build_rect_mesh(const std::vector<float> &p_heights, const
 	PackedSurface surface(total_quads * QUAD_VERTS, total_quads * QUAD_INDICES, p_style.wants_color());
 	parallel_for_rows(p_rect.rows(), [&](int p_begin, int p_end) {
 		PackedSurface::Writer writer = surface.writer_at({ offsets[(size_t)p_begin] * QUAD_VERTS,
-														   offsets[(size_t)p_begin] * QUAD_INDICES });
+				offsets[(size_t)p_begin] * QUAD_INDICES });
 		for (int r = p_begin; r < p_end; r++) {
 			const int j = p_rect.j0 + r;
 			for (int i = p_rect.i0; i < p_rect.i1; i++) {
@@ -132,9 +132,9 @@ static Ref<ArrayMesh> build_rect_mesh(const std::vector<float> &p_heights, const
 }
 
 Ref<ArrayMesh> HeightmapMesher::build_array_mesh_with_heights(const Ref<Image> &p_image, const Vector2 &p_size,
-			const Vector2i &p_verts, double p_height_scale, double p_base_height, int p_filter,
-			 double p_height_power, double p_inset, int64_t p_seed, double p_ao, double p_variation,
-			 double p_clip_below_height, std::vector<float> &r_heights) const {
+		const Vector2i &p_verts, double p_height_scale, double p_base_height, int p_filter,
+		double p_height_power, double p_inset, int64_t p_seed, double p_ao, double p_variation,
+		double p_clip_below_height, std::vector<float> &r_heights) const {
 	const CellGrid grid = make_cell_grid(p_size, p_verts);
 	if (!resolve_cell_heights(p_image, grid, p_height_scale, p_base_height, p_filter, r_heights, p_height_power)) {
 		return Ref<ArrayMesh>();
@@ -161,9 +161,9 @@ static CellRect chunk_rect(const CellGrid &p_grid, int p_chunks, int p_cx, int p
 }
 
 std::vector<Ref<ArrayMesh>> HeightmapMesher::build_array_mesh_chunks(const Ref<Image> &p_image, const Vector2 &p_size,
-			const Vector2i &p_verts, double p_height_scale, double p_base_height, int p_filter,
-			double p_height_power, double p_inset, int64_t p_seed, double p_ao, double p_variation,
-			double p_clip_below_height, int p_chunks, std::vector<float> &r_heights) const {
+		const Vector2i &p_verts, double p_height_scale, double p_base_height, int p_filter,
+		double p_height_power, double p_inset, int64_t p_seed, double p_ao, double p_variation,
+		double p_clip_below_height, int p_chunks, std::vector<float> &r_heights) const {
 	std::vector<Ref<ArrayMesh>> meshes;
 	const CellGrid grid = make_cell_grid(p_size, p_verts);
 	if (!resolve_cell_heights(p_image, grid, p_height_scale, p_base_height, p_filter, r_heights, p_height_power)) {
@@ -191,9 +191,9 @@ std::vector<Ref<ArrayMesh>> HeightmapMesher::build_array_mesh_chunks(const Ref<I
 }
 
 TypedArray<ArrayMesh> HeightmapMesher::build_array_mesh_chunks_array(const Ref<Image> &p_image, const Vector2 &p_size,
-			const Vector2i &p_verts, double p_height_scale, double p_base_height, int p_filter,
-			double p_height_power, double p_inset, int64_t p_seed, double p_ao, double p_variation,
-			double p_clip_below_height, int p_chunks) const {
+		const Vector2i &p_verts, double p_height_scale, double p_base_height, int p_filter,
+		double p_height_power, double p_inset, int64_t p_seed, double p_ao, double p_variation,
+		double p_clip_below_height, int p_chunks) const {
 	std::vector<float> heights;
 	const std::vector<Ref<ArrayMesh>> meshes = build_array_mesh_chunks(p_image, p_size, p_verts, p_height_scale,
 			p_base_height, p_filter, p_height_power, p_inset, p_seed, p_ao, p_variation, p_clip_below_height,

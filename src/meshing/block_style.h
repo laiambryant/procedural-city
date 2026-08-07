@@ -52,7 +52,7 @@ struct BlockShader {
 	float tint = 1.0f;
 
 	BlockShader(const std::vector<float> &p_heights, const CellGrid &p_grid, const BlockStyle &p_style,
-				int p_i, int p_j, float p_top) :
+			int p_i, int p_j, float p_top) :
 			heights(p_heights), grid(p_grid), style(p_style), i(p_i), j(p_j), top(p_top) {
 		tint = 1.0f - style.variation * VARIATION_TINT_SPAN * hash01(p_i, p_j, style.seed ^ SALT_CELL_TINT);
 	}

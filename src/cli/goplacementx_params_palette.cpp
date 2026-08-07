@@ -17,15 +17,15 @@ struct PalettePreset {
 };
 
 static const PalettePreset PALETTE_PRESETS[] = {
-	{ 0, {} },													 // Custom: use the user-edited gradient_colors
-	{ 2, { 0x000000, 0xffffff } },								 // Grayscale
-	{ 3, { 0x00ffff, 0x9500ff, 0xffe500 } },					 // DisplacementX (goplacementx default)
+	{ 0, {} }, // Custom: use the user-edited gradient_colors
+	{ 2, { 0x000000, 0xffffff } }, // Grayscale
+	{ 3, { 0x00ffff, 0x9500ff, 0xffe500 } }, // DisplacementX (goplacementx default)
 	{ 5, { 0x000000, 0x7a0000, 0xff6a00, 0xffe808, 0xffffff } }, // Fire
-	{ 4, { 0x001b2e, 0x1b4965, 0x5fa8d3, 0xcae9ff } },			 // Ocean
+	{ 4, { 0x001b2e, 0x1b4965, 0x5fa8d3, 0xcae9ff } }, // Ocean
 	{ 5, { 0x2b0a3d, 0x7b2d6b, 0xe85d75, 0xffb86b, 0xffe9a8 } }, // Sunset
-	{ 3, { 0xff00ff, 0x00ffff, 0xfaff00 } },					 // Neon
+	{ 3, { 0xff00ff, 0x00ffff, 0xfaff00 } }, // Neon
 	{ 5, { 0x2a4d1e, 0x6b8e23, 0xc2b280, 0x8b5a2b, 0xffffff } }, // Terrain
-	{ 4, { 0x440154, 0x31688e, 0x35b779, 0xfde725 } },			 // Viridis
+	{ 4, { 0x440154, 0x31688e, 0x35b779, 0xfde725 } }, // Viridis
 };
 
 static Color color_from_hex(uint32_t p_hex) {

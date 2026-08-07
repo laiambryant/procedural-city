@@ -55,7 +55,7 @@ static Ref<RandomNumberGenerator> rng_for_attempt(int64_t p_seed, int p_attempt)
 }
 
 Array HiveGenCore::plan_floor(int64_t p_seed, int p_main_length, int p_branch_count,
-							  bool p_include_boss, const Array &p_pool_data) const {
+		bool p_include_boss, const Array &p_pool_data) const {
 	p_main_length = MAX(MIN_MAIN_PATH_LENGTH, p_main_length);
 	for (int attempt = 0; attempt < MAX_PLAN_ATTEMPTS; attempt++) {
 		Array plan = _try_plan(rng_for_attempt(p_seed, attempt), p_main_length, p_branch_count, p_include_boss, p_pool_data);
@@ -67,7 +67,7 @@ Array HiveGenCore::plan_floor(int64_t p_seed, int p_main_length, int p_branch_co
 }
 
 Array HiveGenCore::_try_plan(const Ref<RandomNumberGenerator> &p_rng, int p_main_length,
-							 int p_branch_count, bool p_include_boss, const Array &p_pool_data) const {
+		int p_branch_count, bool p_include_boss, const Array &p_pool_data) const {
 	std::vector<Vector2i> path;
 	CellSet occupied;
 	int heading = DIR_N;
@@ -93,7 +93,7 @@ Array HiveGenCore::_try_plan(const Ref<RandomNumberGenerator> &p_rng, int p_main
 // curling into itself. Fails when the walk traps itself; the caller retries
 // with a fresh seed.
 bool HiveGenCore::_walk_main_path(const Ref<RandomNumberGenerator> &p_rng, int p_main_length,
-								  std::vector<Vector2i> &r_path, CellSet &r_occupied, int &r_heading) const {
+		std::vector<Vector2i> &r_path, CellSet &r_occupied, int &r_heading) const {
 	r_path.push_back(Vector2i(0, 0));
 	r_occupied.insert(_cell_key(Vector2i(0, 0)));
 	while ((int)r_path.size() < p_main_length) {
@@ -122,7 +122,7 @@ static int turn_right(int p_heading) {
 // Candidate step weighted forward 0.5 / left 0.25 / right 0.25 (never back),
 // restricted to free cells. Returns -1 when boxed in.
 int HiveGenCore::_pick_step(const Ref<RandomNumberGenerator> &p_rng, const Vector2i &p_from,
-							int p_heading, const CellSet &p_occupied) const {
+		int p_heading, const CellSet &p_occupied) const {
 	const int dirs[STEP_CANDIDATES] = { p_heading, turn_left(p_heading), turn_right(p_heading) };
 	const double weights[STEP_CANDIDATES] = { STEP_WEIGHT_FORWARD, STEP_WEIGHT_TURN, STEP_WEIGHT_TURN };
 	int usable_dirs[STEP_CANDIDATES];
@@ -153,7 +153,7 @@ int HiveGenCore::_pick_step(const Ref<RandomNumberGenerator> &p_rng, const Vecto
 // A free side of the cell; `preferred` (when >= 0) wins if available,
 // otherwise a seeded pick among the free sides. -1 when fully surrounded.
 int HiveGenCore::_free_side(const Ref<RandomNumberGenerator> &p_rng, const Vector2i &p_cell,
-							int p_preferred, const CellSet &p_occupied) const {
+		int p_preferred, const CellSet &p_occupied) const {
 	if (p_preferred >= 0 && !_occupied_has(p_occupied, p_cell + DIR_VECTORS[p_preferred])) {
 		return p_preferred;
 	}

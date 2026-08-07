@@ -19,12 +19,12 @@ namespace godot {
 
 // How the [0, 1] warp/jitter strengths translate into geometry. Cell-pitch
 // values are fractions of one lattice cell.
-constexpr float WARP_NOISE_PERIODS = 4.0f;		   // noise cycles across the lattice
-constexpr float WARP_CENTER_RANGE_CELLS = 1.5f;	   // max centre drift at warp = 1
+constexpr float WARP_NOISE_PERIODS = 4.0f; // noise cycles across the lattice
+constexpr float WARP_CENTER_RANGE_CELLS = 1.5f; // max centre drift at warp = 1
 constexpr float JITTER_CENTER_RANGE_CELLS = 0.35f; // max centre offset at jitter = 1
-constexpr float JITTER_HEIGHT_SPAN = 0.35f;		   // max +-height scale at jitter = 1
-constexpr float JITTER_FOOTPRINT_SPAN = 0.18f;	   // max footprint shrink at jitter = 1
-constexpr float JITTER_ROTATION_SPAN_RAD = 0.35f;  // max cap rotation at jitter = 1
+constexpr float JITTER_HEIGHT_SPAN = 0.35f; // max +-height scale at jitter = 1
+constexpr float JITTER_FOOTPRINT_SPAN = 0.18f; // max footprint shrink at jitter = 1
+constexpr float JITTER_ROTATION_SPAN_RAD = 0.35f; // max cap rotation at jitter = 1
 // Rim towers keep between RIM_HEIGHT_FLOOR and 1.0 of the full rim boost, the
 // remainder salted per cell so the wall reads as irregular towers.
 constexpr float RIM_HEIGHT_FLOOR = 0.55f;
@@ -127,8 +127,8 @@ float rim_lift(const RimProfile &p_rim, const HexStyle &p_style, const Vector2 &
 }
 
 float cell_column_height(const HeightImageView &p_view, const HexLayout &p_layout, const HexStyle &p_style,
-						 const RimProfile &p_rim, const Vector2 &p_center, int p_i, int p_j,
-						 double p_height_scale, double p_base_height, int p_filter, double p_height_power) {
+		const RimProfile &p_rim, const Vector2 &p_center, int p_i, int p_j,
+		double p_height_scale, double p_base_height, int p_filter, double p_height_power) {
 	const float u = (p_center.x - p_layout.ox) / p_layout.sx;
 	const float v = (p_center.y - p_layout.oz) / p_layout.sz;
 	const float value = apply_height_power(sample_uv(p_view, u, v, p_filter), (float)p_height_power);
@@ -141,7 +141,7 @@ float cell_column_height(const HeightImageView &p_view, const HexLayout &p_layou
 // place_cell_corners shrinks the footprint by the gap and perturbs scale and
 // rotation per cell so caps never read as a printed grid.
 void place_cell_corners(const HexLayout &p_layout, const HexStyle &p_style,
-						const Vector2 &p_center, float p_top, int p_i, int p_j, Vector3 r_corners[6]) {
+		const Vector2 &p_center, float p_top, int p_i, int p_j, Vector3 r_corners[6]) {
 	const float cell_scale = (1.0f - p_style.gap) * (1.0f - hash01(p_i, p_j, p_style.seed ^ SALT_CELL_SCALE) * p_style.jitter * JITTER_FOOTPRINT_SPAN);
 	const float rot = (hash01(p_i, p_j, p_style.seed ^ SALT_CELL_ROTATION) - 0.5f) * p_style.jitter * JITTER_ROTATION_SPAN_RAD;
 	for (int k = 0; k < 6; k++) {

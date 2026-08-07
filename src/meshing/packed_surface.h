@@ -28,16 +28,16 @@ public:
 
 	public:
 		void quad(const Vector3 p_pos[4], const Vector2 p_uv[4], const Color p_col[4],
-				  const Vector3 &p_normal, const Vector3 &p_tangent, float p_tangent_w);
+				const Vector3 &p_normal, const Vector3 &p_tangent, float p_tangent_w);
 		void fan(const Vector3 *p_pos, const Vector2 *p_uv, int p_corners, const Color &p_col,
-				 const Vector3 &p_normal, const Vector3 &p_tangent, float p_tangent_w);
+				const Vector3 &p_normal, const Vector3 &p_tangent, float p_tangent_w);
 
 	private:
 		Writer(PackedSurface &p_surface, const Cursor &p_cursor) :
 				surface(p_surface), vi(p_cursor.vertex), ii(p_cursor.index) {}
 
 		int32_t push_vertex(const Vector3 &p_pos, const Vector2 &p_uv, const Color &p_col,
-							const Vector3 &p_normal, const Vector3 &p_tangent, float p_tangent_w);
+				const Vector3 &p_normal, const Vector3 &p_tangent, float p_tangent_w);
 		void push_triangle(int32_t p_a, int32_t p_b, int32_t p_c);
 
 		PackedSurface &surface;

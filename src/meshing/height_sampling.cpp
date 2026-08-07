@@ -179,8 +179,8 @@ float godot::sample_uv(const HeightImageView &p_view, float p_u, float p_v, int 
 }
 
 bool godot::resolve_cell_heights(const Ref<Image> &p_image, const CellGrid &p_grid,
-								 double p_height_scale, double p_base_height, int p_filter, std::vector<float> &r_heights,
-								 double p_height_power) {
+		double p_height_scale, double p_base_height, int p_filter, std::vector<float> &r_heights,
+		double p_height_power) {
 	const HeightImageView view = decode_height_image(p_image);
 	if (!view.is_valid()) {
 		return false;
