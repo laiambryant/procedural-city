@@ -9,13 +9,9 @@
 
 using namespace godot;
 
-// Sanity caps on the length-prefixed frames: reject anything claiming a path
-// over 64 KiB or a map beyond the decoder's supported 8192 RGBA envelope as a
-// corrupt stream.
 static constexpr uint32_t MAX_FRAME_PATH_BYTES = 1u << 16;
 static constexpr uint32_t MAX_FRAME_BLOB_BYTES = (uint32_t)GDXRAW_MAX_STREAM_BYTES;
 
-// Width of the little-endian length prefix in front of each frame field.
 static constexpr uint64_t FRAME_LENGTH_BYTES = 4;
 
 PackedStringArray godot::serve_args() {
@@ -24,9 +20,6 @@ PackedStringArray godot::serve_args() {
 	return args;
 }
 
-// append_size sends an explicit width/height when the params carry one, and
-// falls back to the square resolution otherwise — the same choice the one-shot
-// CLI makes from its config file.
 static void append_size(Dictionary &r_req, const Ref<GoplacementxParams> &p_params) {
 	const int width = p_params.is_valid() ? p_params->get_out_width() : 0;
 	const int height = p_params.is_valid() ? p_params->get_out_height() : 0;
@@ -84,8 +77,6 @@ static bool read_u32le(const Ref<FileAccess> &p_pipe, uint32_t &r_value) {
 	return true;
 }
 
-// read_chunk pulls one length-prefixed field, refusing a length past p_max as a
-// desynchronized stream rather than trying to allocate it.
 static bool read_chunk(const Ref<FileAccess> &p_pipe, uint32_t p_max, PackedByteArray &r_bytes) {
 	uint32_t len;
 	if (!read_u32le(p_pipe, len) || len > p_max) {
@@ -115,7 +106,7 @@ static bool read_map_image(const Ref<FileAccess> &p_pipe, Ref<Image> &r_image) {
 	return r_image.is_valid();
 }
 
-bool godot::read_frame(const Ref<FileAccess> &p_pipe, String &r_path, Ref<Image> &r_image) {
+bool godot::read_frame_locked(const Ref<FileAccess> &p_pipe, String &r_path, Ref<Image> &r_image) {
 	PackedByteArray path_bytes;
 	if (!read_chunk(p_pipe, MAX_FRAME_PATH_BYTES, path_bytes)) {
 		return false;

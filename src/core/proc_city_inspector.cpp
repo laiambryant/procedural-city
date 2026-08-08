@@ -4,9 +4,6 @@
 
 using namespace godot;
 
-// _bind_inspector_surface declares everything the editor shows: the property
-// groups in the order they appear in the inspector, the action buttons, the
-// signals, and the enum constants scripts match those properties against.
 void ProcCityGenerator::_bind_inspector_surface() {
 	ADD_PROPERTY(PropertyInfo(Variant::OBJECT, "params", PROPERTY_HINT_RESOURCE_TYPE, "GoplacementxParams"), "set_params", "get_params");
 

@@ -17,8 +17,6 @@
 
 using namespace godot;
 
-// Godot rebuilds the whole CSG boolean union on every change, so box counts
-// past this stall the editor noticeably; warn before building.
 static constexpr int64_t CSG_BOX_WARNING_THRESHOLD = 2048;
 
 static MeshInstance3D *wrap_mesh_in_instance(const Ref<ArrayMesh> &p_mesh) {
@@ -27,10 +25,10 @@ static MeshInstance3D *wrap_mesh_in_instance(const Ref<ArrayMesh> &p_mesh) {
 	return mi;
 }
 
-// An occluder built from the chunk's own triangles. Godot requires occluders to
-// stay inside the geometry they stand in for, and nothing is more inside a mesh
-// than the mesh itself: reusing the positions is conservative by construction,
-// and blocks are already the coarsest possible silhouette for a city.
+static void reset_cell_heights_cache_for_manual_rebuild(Dictionary &r_cache) {
+	r_cache.clear();
+}
+
 static void attach_chunk_occluder(MeshInstance3D *p_chunk, const Ref<ArrayMesh> &p_mesh) {
 	if (p_mesh.is_null() || p_mesh->get_surface_count() == 0) {
 		return;
@@ -51,9 +49,6 @@ static void attach_chunk_occluder(MeshInstance3D *p_chunk, const Ref<ArrayMesh> 
 	p_chunk->add_child(instance);
 }
 
-// _make_chunk_container hangs one MeshInstance3D per chunk off a plain Node3D.
-// Each child carries its own mesh (and therefore its own AABB), which is the
-// whole point: the renderer culls, and _attach_collision recurses, per tile.
 Node3D *ProcCityGenerator::_make_chunk_container(const std::vector<Ref<ArrayMesh>> &p_meshes) {
 	Node3D *container = memnew(Node3D);
 	for (size_t i = 0; i < p_meshes.size(); i++) {
@@ -77,9 +72,7 @@ bool ProcCityGenerator::_build_geometry_main() {
 		_emit_failed("geometry", budget_error);
 		return false;
 	}
-	// A synchronous rebuild is also the explicit refresh boundary for callers
-	// that mutate an Image in place before invoking build_geometry().
-	_cell_heights_cache.clear();
+	reset_cell_heights_cache_for_manual_rebuild(_cell_heights_cache);
 
 	Node3D *container = _make_geometry_container();
 	if (container == nullptr) {
@@ -177,9 +170,6 @@ Node3D *ProcCityGenerator::_make_blocks_node() {
 	return single;
 }
 
-// _install_worker_meshes rebuilds the container the worker's meshes belong in.
-// One mesh stays a bare MeshInstance3D, so the unchunked scene tree — and every
-// script that reaches the city by GeneratedCity — is exactly what it was.
 Node3D *ProcCityGenerator::_install_worker_meshes(const TypedArray<ArrayMesh> &p_meshes) {
 	if (p_meshes.size() == 1) {
 		Ref<ArrayMesh> mesh = p_meshes[0];
@@ -208,10 +198,6 @@ bool ProcCityGenerator::_apply_result_geometry(const Dictionary &p_result) {
 	return _build_geometry_main();
 }
 
-// _forget_generated_library drops the tracked MeshLibrary once the city it
-// belonged to is gone. Only a GridMap has one to retint, and only the one it
-// just built (_resolve_gridmap_library already cleared this for a user-supplied
-// library), so any other container means the reference is dead weight.
 void ProcCityGenerator::_forget_generated_library(Node3D *p_container) {
 	if (Object::cast_to<GridMap>(p_container) == nullptr) {
 		_generated_library = Ref<MeshLibrary>();

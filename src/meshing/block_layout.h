@@ -12,11 +12,6 @@
 
 namespace godot {
 
-// Where the block backend's geometry goes before anything is written: the UV
-// mapping, one cell's footprint, which of its walls are visible, and the
-// per-row prefix sums that give each thread a private slice of the output.
-// Header-only for the same reason as block_style.h — this is per-cell code.
-
 float height_at(const std::vector<float> &p_heights, const CellGrid &p_grid, int p_i, int p_j) {
 	return p_heights[(size_t)p_j * (size_t)p_grid.cols + (size_t)p_i];
 }
@@ -44,19 +39,15 @@ struct BlockUvMap {
 		return Vector2((p_x - ox) / sx, (p_z - oz) / sz);
 	}
 
-	// Wall UV: the roof's planar mapping slid down the face by the drop below
-	// the roofline, in the direction the wall faces.
 	Vector2 drape_uv(const Vector3 &p_pos, const Vector3 &p_normal, float p_eave_y) const {
 		const float drop = p_eave_y - p_pos.y;
 		return planar_uv(p_pos.x, p_pos.z) + Vector2(p_normal.x / sx, p_normal.z / sz) * drop;
 	}
 };
 
-// Analytic mikktspace equivalents for the draped mapping: every face carries
-// w = -1, walls facing +-X have their tangent along +-Y because there the UV's
-// u coordinate only varies with height.
 Vector3 wall_tangent(const Vector3 &p_normal) {
-	if (p_normal.x != 0.0f) {
+	const bool wall_faces_x_axis = p_normal.x != 0.0f;
+	if (wall_faces_x_axis) {
 		return Vector3(0.0f, -p_normal.x, 0.0f);
 	}
 	return Vector3(1.0f, 0.0f, 0.0f);
@@ -64,15 +55,12 @@ Vector3 wall_tangent(const Vector3 &p_normal) {
 
 constexpr float TANGENT_W = -1.0f;
 
-// Every face is one quad: 4 unique vertices, 2 indexed triangles.
 constexpr int64_t QUAD_VERTS = 4;
 constexpr int64_t QUAD_INDICES = 6;
 
 struct CellBounds {
 	float x0, x1, z0, z1;
 
-	// p_inset (fraction of a cell per side) shrinks the footprint, used for
-	// freestanding blocks with streets between them.
 	CellBounds(const CellGrid &p_grid, int p_i, int p_j, float p_inset = 0.0f) :
 			x0(p_grid.ox + (float)p_i * p_grid.cw + p_grid.cw * p_inset),
 			x1(p_grid.ox + (float)(p_i + 1) * p_grid.cw - p_grid.cw * p_inset),
@@ -86,10 +74,6 @@ struct WallFace {
 	Vector3 normal;
 };
 
-// Legacy face order per cell: roof, then south/north/west/east walls. Merged
-// mode emits a wall only where the block rises above that neighbour (shared
-// interior walls stay culled); freestanding mode (inset > 0) always emits all
-// four, dropping to the floor, since every block stands alone over streets.
 int visible_walls(const std::vector<float> &p_heights, const CellGrid &p_grid,
 		int p_i, int p_j, float p_top, const CellBounds &p_b, bool p_freestanding,
 		float p_clip_below_height, WallFace r_faces[4]) {
@@ -132,10 +116,6 @@ int cell_quad_count(const std::vector<float> &p_heights, const CellGrid &p_grid,
 	return quads;
 }
 
-// CellRect is the half-open block of cells one mesh covers. Chunked geometry
-// emits several meshes over disjoint rects of the same height grid; neighbour
-// culling still reads the FULL grid, so a wall on a chunk border is culled
-// exactly as it would be in a single mesh and the seams stay invisible.
 struct CellRect {
 	int i0 = 0;
 	int i1 = 0;
@@ -149,9 +129,6 @@ struct CellRect {
 	static CellRect whole(const CellGrid &p_grid) { return { 0, p_grid.cols, 0, p_grid.rows }; }
 };
 
-// Quad layout per row is fixed by the emission order, so per-row prefix sums
-// give every band a private [vertex, index) range. Rows are counted relative to
-// the rect, so offsets[0] is always 0 for the chunk being built.
 std::vector<int64_t> row_quad_offsets(const std::vector<float> &p_heights, const CellGrid &p_grid,
 		bool p_freestanding, float p_clip_below_height, const CellRect &p_rect) {
 	const int rows = p_rect.rows();

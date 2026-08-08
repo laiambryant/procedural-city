@@ -14,18 +14,6 @@
 
 namespace godot {
 
-// HiveGenCore is the C++ port of the-beehive's GDScript floor planner
-// (res://scripts/systems/gen_core_fallback.gd). NativeBridge.get_gen_core()
-// instantiates this class whenever the extension is loaded, so the two
-// implementations must stay call-for-call identical: same seed, same RNG
-// stream, same plan. Contract: primitives in, primitives out.
-//
-//   plan_floor(seed: int, main_length: int, branch_count: int,
-//              include_boss: bool, pool_data: Array) -> Array[Dictionary]
-//
-// Each returned Dictionary: cell (Vector2i), pool_index (int),
-// connections (int doorway bitmask, bit0 N/bit1 E/bit2 S/bit3 W),
-// kind (String), order (int), parent_order (int).
 class HiveGenCore : public RefCounted {
 	GDCLASS(HiveGenCore, RefCounted)
 

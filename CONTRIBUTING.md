@@ -38,10 +38,12 @@ threading/determinism contracts. The short version:
   clang-format -i src/**/*.cpp src/**/*.h
   ```
 
-- **No magic values.** Tuning factors, protocol offsets, thresholds and hash
-  salts get a named `constexpr` with a comment saying what the value means —
-  file-local when used once, in the module header when shared (see
-  `src/meshing/baked_style.h`).
+- **No magic values, no comments.** Tuning factors, protocol offsets,
+  thresholds and hash salts get a named `constexpr` whose name says what the
+  value means — file-local when used once, in the module header when shared
+  (see `src/meshing/baked_style.h`). The same goes for logic: a block that
+  needs explaining is a block that needs a better-named helper function, not a
+  comment next to it.
 - Includes are rooted at `src/`: `#include "meshing/packed_surface.h"`.
 - Keep worker-thread code free of scene-tree access; anything touching nodes
   runs on the main thread (see the threading contract in ARCHITECTURE.md).

@@ -15,11 +15,6 @@
 
 using namespace godot;
 
-// A generated city is megabytes of vertex, index and face data. Left as an
-// unnamed sub-resource it is embedded in the .tscn as base64 text, which is
-// what turns a scene into hundreds of megabytes and makes every save and load
-// crawl. Writing each heavy resource to a binary .res and letting the scene
-// reference it keeps the scene a few kilobytes of node structure.
 struct ExternalSlot {
 	const char *class_name;
 	const char *property;
@@ -42,8 +37,6 @@ static bool ensure_directory(const String &p_dir) {
 	return DirAccess::make_dir_recursive_absolute(p_dir) == OK;
 }
 
-// Names stay stable across regenerations so a rebuild overwrites its own files
-// instead of littering the project with orphans.
 static String slot_path(const String &p_dir, const String &p_owner_name, const char *p_suffix, int p_index) {
 	return p_dir.path_join(p_owner_name + String("_") + String(p_suffix) + String("_") + String::num_int64(p_index) + String(".res"));
 }
@@ -63,15 +56,10 @@ static bool store_externally(const Ref<Resource> &p_resource, const String &p_pa
 	return true;
 }
 
-// Resources that already live on disk are left alone: a user-supplied mesh
-// library or material is not ours to rewrite.
 static bool needs_externalizing(const Ref<Resource> &p_resource) {
 	return p_resource.is_valid() && p_resource->get_path().is_empty();
 }
 
-// A material carries the city's albedo, normal and roughness maps. Saved as one
-// resource it would drag every pixel into its own .res, so each texture is given
-// a file first and the material is left holding references.
 static void externalize_material_textures(const Ref<Resource> &p_resource, const String &p_dir, const String &p_owner_name, int &r_index, int &r_failures) {
 	Ref<BaseMaterial3D> material = p_resource;
 	if (material.is_null()) {

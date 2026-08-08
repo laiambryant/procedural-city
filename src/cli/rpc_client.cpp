@@ -139,6 +139,13 @@ static Dictionary reply_error(const String &p_message) {
 	return out;
 }
 
+static Dictionary reply_ok() {
+	Dictionary out;
+	out["code"] = 0;
+	out["output"] = String();
+	return out;
+}
+
 Dictionary ProcCityRpcClient::run_generate(const String &p_mode, int64_t p_seed, const String &p_out_key, const Ref<GoplacementxParams> &p_params) const {
 	std::lock_guard<std::mutex> guard(io_mutex);
 	if (!stubs) {
@@ -164,9 +171,7 @@ Dictionary ProcCityRpcClient::run_generate(const String &p_mode, int64_t p_seed,
 		return reply_error("gRPC server sent an undecodable map");
 	}
 
-	Dictionary out;
-	out["code"] = 0;
-	out["output"] = String();
+	Dictionary out = reply_ok();
 	out["path"] = p_out_key;
 	out["image"] = image;
 	return out;
@@ -260,9 +265,7 @@ Dictionary ProcCityRpcClient::run_bundle(const Array &p_emits, const Ref<Goplace
 		return reply_error("gRPC server ended before the terminal map chunk");
 	}
 
-	Dictionary out;
-	out["code"] = 0;
-	out["output"] = String();
+	Dictionary out = reply_ok();
 	out["images"] = images;
 	return out;
 }
@@ -282,9 +285,7 @@ Dictionary ProcCityRpcClient::randomize(int64_t p_seed) const {
 		return reply_error(String(status.error_message().c_str()));
 	}
 
-	Dictionary out;
-	out["code"] = 0;
-	out["output"] = String();
+	Dictionary out = reply_ok();
 	out["params"] = proto_params_to_dict(reply.params());
 	return out;
 }
@@ -331,9 +332,6 @@ void godot::proc_city_rpc_clients_shutdown() {
 
 using namespace godot;
 
-// ProcCityRpcClient holds a unique_ptr<RpcStubs>, so its destructor needs the
-// complete type even in a build that never dials anything. There are no stubs
-// without gRPC, so an empty one is the whole definition.
 struct godot::RpcStubs {};
 
 ProcCityRpcClient::ProcCityRpcClient(CliKind p_kind) :

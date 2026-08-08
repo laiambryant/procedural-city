@@ -8,10 +8,6 @@
 
 using namespace godot;
 
-// CliSpec is everything that differs between the two CLIs the extension can
-// drive: where to download it from, what the executable is called (including
-// the pre-rename stem still found in older checkouts), which addon directories
-// a bundled copy may sit in, and where downloads are cached.
 struct CliSpec {
 	const char *repo;
 	const char *display_name;
@@ -41,16 +37,11 @@ static const CliSpec &spec_for(CliKind p_kind) {
 	return p_kind == CliKind::GPUDISPLACEMENTX ? gpudisplacementx_spec : godisplacementx_spec;
 }
 
-// existing_global_path resolves a res:// or user:// path and returns it only if
-// something is actually there, so each resolution step is a single check.
 static String existing_global_path(const String &p_path) {
 	const String global = ProjectSettings::get_singleton()->globalize_path(p_path);
 	return FileAccess::file_exists(global) ? global : String();
 }
 
-// bundled_binary_names lists the executable names a shipped copy might use:
-// the current stem, plus the pre-rename one where the CLI still has a legacy
-// name to honour.
 static PackedStringArray bundled_binary_names(const CliSpec &p_spec, const PlatformInfo &p_platform) {
 	PackedStringArray names;
 	names.push_back(String(p_spec.cli_stem) + p_platform.exe_suffix);
@@ -60,8 +51,6 @@ static PackedStringArray bundled_binary_names(const CliSpec &p_spec, const Platf
 	return names;
 }
 
-// find_bundled_binary searches every addon directory the CLI may ship under,
-// for every name it may ship as.
 static String find_bundled_binary(const CliSpec &p_spec, const PlatformInfo &p_platform) {
 	const PackedStringArray names = bundled_binary_names(p_spec, p_platform);
 	for (const char *root : p_spec.bundled_roots) {

@@ -104,8 +104,6 @@ cppdx::OutputMode godot::to_native_output_mode(const String &p_mode) {
 	return cppdx::OutputMode::GRAYSCALE;
 }
 
-// The imported texture is the only copy an exported build ships: reading the
-// .png next to it works while authoring but resolves to nothing once exported.
 static Ref<Image> imported_sprite_image(const String &p_path) {
 	Ref<Texture2D> texture = ResourceLoader::get_singleton()->load(p_path);
 	if (texture.is_null()) {

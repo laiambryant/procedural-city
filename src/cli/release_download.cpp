@@ -15,13 +15,9 @@
 
 using namespace godot;
 
-// The API endpoint redirects at most once in practice; the asset download goes
-// api.github.com -> release CDN and may hop a couple more times.
 static constexpr int MAX_API_REDIRECTS = 4;
 static constexpr int MAX_ASSET_REDIRECTS = 6;
 
-// File the installed tag is recorded in, beside the binary, so a later session
-// can tell which release the cache holds.
 static const char *VERSION_STAMP_NAME = "VERSION";
 
 PlatformInfo godot::detect_platform() {
@@ -60,8 +56,6 @@ static String pick_release_asset(const Dictionary &p_release, const String &p_su
 	return String();
 }
 
-// mark_executable sets the unix permission bit FileAccess cannot: a downloaded
-// binary that is not executable is of no use to anyone.
 static void mark_executable(const String &p_path) {
 	PackedStringArray args;
 	args.push_back("+x");
@@ -90,14 +84,10 @@ static void stamp_version(const String &p_cache_dir, const String &p_tag) {
 	}
 }
 
-// http_failure prefers the transport error, falling back to the status code
-// when the request completed but the server said no.
 static String http_failure(const HttpResponse &p_response) {
 	return p_response.error.is_empty() ? "HTTP " + String::num_int64(p_response.code) : p_response.error;
 }
 
-// fetch_latest_release resolves the newest release of p_repo to a downloadable
-// asset URL for this platform, reporting r_tag and whether it is a zip.
 static String fetch_latest_release_asset(const String &p_repo, const String &p_display, const PlatformInfo &p_platform,
 		String &r_tag, bool &r_zip) {
 	const String api_url = String("https://api.github.com/repos/") + p_repo + "/releases/latest";

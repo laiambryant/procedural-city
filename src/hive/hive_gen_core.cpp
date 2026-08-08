@@ -10,11 +10,7 @@
 using namespace godot;
 
 static const int MAX_PLAN_ATTEMPTS = 20;
-// A floor needs at least start, one middle room and reward to be playable.
 static const int MIN_MAIN_PATH_LENGTH = 3;
-// Step weights of the self-avoiding walk: forward twice as likely as either
-// turn, so the path keeps snaking north instead of curling into itself. The
-// candidates are forward, left and right — never back onto itself.
 static const int STEP_CANDIDATES = 3;
 static const double STEP_WEIGHT_FORWARD = 0.5;
 static const double STEP_WEIGHT_TURN = 0.25;
@@ -25,8 +21,6 @@ void HiveGenCore::_bind_methods() {
 			&HiveGenCore::plan_floor);
 }
 
-// Two int32 grid coordinates packed into one key: x takes the high half, y the
-// low, so every cell maps to a distinct value with no hashing.
 static constexpr int CELL_KEY_X_SHIFT = 32;
 
 uint64_t HiveGenCore::_cell_key(const Vector2i &p_cell) {
@@ -37,9 +31,6 @@ bool HiveGenCore::_occupied_has(const CellSet &p_occupied, const Vector2i &p_cel
 	return p_occupied.find(_cell_key(p_cell)) != p_occupied.end();
 }
 
-// retry_seed mirrors the GDScript reseed exactly — hash([seed_value, attempt])
-// — so a retried plan lands on the same RNG stream the original does. Frozen:
-// any other mixing would regenerate every existing floor.
 static uint64_t retry_seed(int64_t p_seed, int p_attempt) {
 	Array key;
 	key.push_back(p_seed);
@@ -89,9 +80,6 @@ Array HiveGenCore::_try_plan(const Ref<RandomNumberGenerator> &p_rng, int p_main
 	return rooms;
 }
 
-// A self-avoiding walk, forward-biased so it keeps snaking north instead of
-// curling into itself. Fails when the walk traps itself; the caller retries
-// with a fresh seed.
 bool HiveGenCore::_walk_main_path(const Ref<RandomNumberGenerator> &p_rng, int p_main_length,
 		std::vector<Vector2i> &r_path, CellSet &r_occupied, int &r_heading) const {
 	r_path.push_back(Vector2i(0, 0));
@@ -109,8 +97,6 @@ bool HiveGenCore::_walk_main_path(const Ref<RandomNumberGenerator> &p_rng, int p
 	return true;
 }
 
-// DIR_VECTORS runs clockwise, so the neighbouring index one step back is a left
-// turn and one step on is a right turn.
 static int turn_left(int p_heading) {
 	return (p_heading + DIR_COUNT - 1) % DIR_COUNT;
 }
@@ -119,8 +105,6 @@ static int turn_right(int p_heading) {
 	return (p_heading + 1) % DIR_COUNT;
 }
 
-// Candidate step weighted forward 0.5 / left 0.25 / right 0.25 (never back),
-// restricted to free cells. Returns -1 when boxed in.
 int HiveGenCore::_pick_step(const Ref<RandomNumberGenerator> &p_rng, const Vector2i &p_from,
 		int p_heading, const CellSet &p_occupied) const {
 	const int dirs[STEP_CANDIDATES] = { p_heading, turn_left(p_heading), turn_right(p_heading) };
@@ -150,8 +134,6 @@ int HiveGenCore::_pick_step(const Ref<RandomNumberGenerator> &p_rng, const Vecto
 	return usable_dirs[usable_count - 1];
 }
 
-// A free side of the cell; `preferred` (when >= 0) wins if available,
-// otherwise a seeded pick among the free sides. -1 when fully surrounded.
 int HiveGenCore::_free_side(const Ref<RandomNumberGenerator> &p_rng, const Vector2i &p_cell,
 		int p_preferred, const CellSet &p_occupied) const {
 	if (p_preferred >= 0 && !_occupied_has(p_occupied, p_cell + DIR_VECTORS[p_preferred])) {

@@ -14,12 +14,8 @@
 
 using namespace godot;
 
-// Exit code gpudisplacementx uses for "no usable GPU adapter", the one failure
-// worth retrying on the CPU binary rather than reporting.
 static constexpr int GPU_NO_ADAPTER_EXIT = 2;
 
-// What one generation produced, or why it could not: the two backends fill the
-// same shape so the tail of _thread_body never learns which one ran.
 struct MapProduction {
 	Dictionary run;
 	int used_mode = ProcCityGenerator::GEN_GPU_NATIVE;
@@ -68,10 +64,6 @@ static const char *cli_display_name(int p_generation_mode) {
 	return is_legacy_gpu_mode(p_generation_mode) ? "gpudisplacementx" : "godisplacementx";
 }
 
-// run_generation_bundle prefers the persistent GPU server when the node opted
-// in and the generation resolved to GPU; any server failure (process not up,
-// pipe closed, per-request error) transparently falls back to the one-shot CLI,
-// which itself still handles the exit-2 CPU fallback downstream.
 static Dictionary run_generation_bundle(const Ref<GoplacementxRunner> &p_runner, const String &p_binary,
 		const String &p_config, const Array &p_emits, const Ref<GoplacementxParams> &p_params,
 		int p_used_mode, bool p_use_server, int p_material_max_size, bool p_mipmaps) {
@@ -90,10 +82,6 @@ static Dictionary run_generation_bundle(const Ref<GoplacementxRunner> &p_runner,
 	return p_runner->run_bundle(p_binary, p_config, p_emits, p_params);
 }
 
-// plan_emits_for_cli names the output maps in an interchange format the
-// currently resolved CLI can actually write. It has to be re-run after a
-// GPU->CPU fallback: reusing the GPU's .gdxraw paths would leave the CPU binary
-// writing PNG bytes into files that later fail the GDXR header check.
 static Array plan_emits_for_cli(const Ref<GoplacementxRunner> &p_runner, const Dictionary &p_job, const String &p_dir,
 		bool p_want_height, bool p_want_material, Dictionary &r_result) {
 	const String ext = map_extension_for((bool)p_job.get("keep_intermediate_png", false), p_runner->supports_gdxraw());
@@ -105,13 +93,6 @@ static CliKind to_binary_provider_kind(int p_generation_mode) {
 	return is_legacy_gpu_mode(p_generation_mode) ? CliKind::GPUDISPLACEMENTX : CliKind::GODISPLACEMENTX;
 }
 
-// try_grpc_bundle is the first thing every legacy generation attempts: params
-// travel in the request message and maps come back over one persistent channel,
-// so nothing is ever written to or read from disk and the CLI's startup cost
-// (process spawn, or the GPU's ~600ms device bring-up) is paid once per
-// session instead of once per generation. Returns an empty Dictionary - never
-// one with a "code" key - when gRPC isn't available for this binary, so the
-// caller knows to fall back to writing the config file.
 static Dictionary try_grpc_bundle(const String &p_binary, int p_used_mode, const Array &p_emits,
 		const Ref<GoplacementxParams> &p_params, int p_material_max_size, bool p_mipmaps) {
 	ProcCityRpcClient *rpc = proc_city_rpc_client_for(to_binary_provider_kind(p_used_mode));
@@ -126,8 +107,6 @@ static Dictionary try_grpc_bundle(const String &p_binary, int p_used_mode, const
 	return Dictionary();
 }
 
-// cli_failure_message prefers whatever the CLI printed, falling back to the
-// exit code when it died without saying anything.
 static String cli_failure_message(const Dictionary &p_run, int p_used_mode) {
 	String message = String(p_run.get("output", ""));
 	if (message.strip_edges().is_empty()) {
@@ -136,9 +115,6 @@ static String cli_failure_message(const Dictionary &p_run, int p_used_mode) {
 	return message;
 }
 
-// The in-process backend needs no binary, no config file and no temporary
-// files: it plans the same emit paths purely as keys and hands the maps back as
-// Images, so the loader downstream never touches the disk.
 static MapProduction produce_native_maps(const Dictionary &p_job, Dictionary &r_result) {
 	const int stages = p_job["stages"];
 	const Array emits = plan_bundle_emits(p_job["dir"], (uint64_t)(int64_t)p_job["seed"],
@@ -218,10 +194,6 @@ static MapProduction produce_legacy_maps(const Dictionary &p_job, Dictionary &r_
 	return production;
 }
 
-// The native backends keep every map in memory, so their planned paths were
-// only dictionary keys. Dropping them once the images are loaded stops
-// generation_finished from advertising a file nobody wrote, and stops the
-// cleanup pass from chasing it.
 static void forget_planned_paths(Dictionary &r_result) {
 	for (const char *key : { "height_path", "albedo_path", "normal_path", "r_path", "g_path", "b_path", "rough_path" }) {
 		r_result.erase(key);

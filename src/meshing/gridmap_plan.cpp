@@ -6,25 +6,17 @@
 
 using namespace godot;
 
-// auto_level_height keeps cells as close to cubic as the footprint allows: the
-// shorter horizontal side, so no cell ends up taller than it is wide.
+static constexpr int MIN_COLUMN_LEVELS = 1;
+
 static float auto_level_height(const CellGrid &p_grid) {
 	return MIN(p_grid.cw, p_grid.cd);
 }
 
-// levels_for_height quantizes one column to the nearest whole number of levels,
-// but never to zero: the ground layer stays solid instead of developing holes
-// wherever the sampled surface dips below half a level. A level height small
-// enough to overflow the conversion saturates at the cell cap instead, so the
-// budget check below reports it rather than the cast going undefined.
 static int levels_for_height(float p_height, float p_level_height) {
 	const double levels = Math::round((double)p_height / (double)p_level_height);
-	return (int)CLAMP(levels, 1.0, (double)GRIDMAP_MAX_CELLS);
+	return (int)CLAMP(levels, (double)MIN_COLUMN_LEVELS, (double)GRIDMAP_MAX_CELLS);
 }
 
-// measure_columns quantizes every column and totals the plan before a single
-// cell is placed: a bad level height can ask for orders of magnitude more cells
-// than the column count hints at, and that has to be caught before the reserve.
 static void measure_columns(const std::vector<float> &p_heights, float p_level_height, bool p_fill_columns,
 		std::vector<int> &r_levels, int64_t &r_total, int &r_tallest) {
 	r_levels.resize(p_heights.size());

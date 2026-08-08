@@ -61,9 +61,9 @@ public:
 		MATERIAL_ORM = 1,
 	};
 	enum TextureMode {
-		TEX_SINGLE = 0, // one colour map -> Albedo; scalar roughness/metallic
-		TEX_SHARED = 1, // one map -> Albedo (colour) + Roughness + Height
-		TEX_CHANNELS = 2, // five maps -> R, G, B, Roughness, Height
+		TEX_SINGLE = 0,
+		TEX_SHARED = 1,
+		TEX_CHANNELS = 2,
 	};
 	enum TextureFilter {
 		TEXTURE_FILTER_NEAREST = 0,
@@ -127,18 +127,12 @@ private:
 	Ref<Image> _rough_image;
 	Ref<Material> _material;
 	mutable Dictionary _cell_heights_cache;
-	// Monotonic signature for every input that changes the logical cell-height
-	// grid. Worker results carry the launch revision so a setter invoked while a
-	// job is in flight cannot restore a cache sampled with obsolete settings.
 	int64_t _height_inputs_revision = 0;
 	Ref<MeshLibrary> _generated_library;
 	String _last_height_path;
 	String _last_albedo_path;
 	String _last_normal_path;
 	int _material_texture_mode = TEX_SINGLE;
-	// Filter captured with the job that produced the retained maps. Inspector
-	// edits made while a worker is running must not change how that result is
-	// uploaded after its mip policy has already been decided.
 	int _material_texture_filter = TEXTURE_FILTER_LINEAR;
 	int64_t _resolved_seed = 0;
 	uint64_t _pipeline_started_usec = 0;

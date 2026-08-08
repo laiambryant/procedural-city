@@ -11,9 +11,6 @@
 
 namespace godot {
 
-// Renders generation_mode as a radio group instead of a dropdown: the four
-// backends are one exclusive choice, and seeing all of them at once is the
-// point - a dropdown hides which alternatives exist.
 class ProcCityModeRadio : public EditorProperty {
 	GDCLASS(ProcCityModeRadio, EditorProperty)
 

@@ -7,7 +7,6 @@
 
 using namespace godot;
 
-// Height pixels are single bytes; sampling normalizes them to [0, 1].
 static constexpr float MAX_BYTE_VALUE = 255.0f;
 
 CellGrid godot::make_cell_grid(const Vector2 &p_size, const Vector2i &p_verts) {
@@ -66,15 +65,6 @@ static float red_at(const HeightImageView &p_view, int p_x, int p_y) {
 	return (float)p_view.pixels[((size_t)p_y * (size_t)p_view.width + (size_t)p_x) * (size_t)p_view.stride];
 }
 
-// Downsampling a large source map onto the block grid is the heaviest loop in
-// the mesher: a 72-cell grid over an 8192 map reads every one of its 67M bytes.
-// The accumulator width is what makes it fast. A uint64_t running sum forces the
-// compiler to zero-extend every byte to 64 bits, which blocks vectorisation
-// entirely; four independent 32-bit lanes let it fold the row with packed byte
-// adds instead. A row can hold at most 255 * 2^24 pixels before a lane wraps,
-// far past any image an Image can describe, and integer addition is
-// associative, so the split is exact — same sum, same order of magnitude fewer
-// instructions.
 static inline uint64_t sum_bytes(const uint8_t *p_row, int p_count) {
 	uint32_t a = 0, b = 0, c = 0, d = 0;
 	int x = 0;
@@ -90,9 +80,6 @@ static inline uint64_t sum_bytes(const uint8_t *p_row, int p_count) {
 	return (uint64_t)a + (uint64_t)b + (uint64_t)c + (uint64_t)d;
 }
 
-// Interleaved-source form (RGB/RGBA height maps): only the red byte of each
-// pixel counts, so the reads are strided and no packed path applies. The lane
-// split still keeps the accumulator 32-bit.
 static inline uint64_t sum_bytes_strided(const uint8_t *p_row, int p_count, int p_stride) {
 	uint32_t a = 0, b = 0;
 	const size_t step = (size_t)p_stride;
@@ -178,6 +165,10 @@ float godot::sample_uv(const HeightImageView &p_view, float p_u, float p_v, int 
 	return sample_uv_bilinear(p_view, p_u, p_v);
 }
 
+static int min_rows_per_band_for_filter(bool p_nearest) {
+	return p_nearest ? DEFAULT_MIN_ROWS_PER_BAND : HEAVY_MIN_ROWS_PER_BAND;
+}
+
 bool godot::resolve_cell_heights(const Ref<Image> &p_image, const CellGrid &p_grid,
 		double p_height_scale, double p_base_height, int p_filter, std::vector<float> &r_heights,
 		double p_height_power) {
@@ -190,10 +181,7 @@ bool godot::resolve_cell_heights(const Ref<Image> &p_image, const CellGrid &p_gr
 	const bool nearest = p_filter == HeightmapMesher::FILTER_NEAREST;
 
 	r_heights.resize((size_t)p_grid.cols * (size_t)p_grid.rows);
-	// Box-average reads the whole source map, so a row of cells is heavy enough
-	// to hand every core its own band; nearest touches one pixel per cell and
-	// keeps the default granularity.
-	const int min_rows = nearest ? DEFAULT_MIN_ROWS_PER_BAND : HEAVY_MIN_ROWS_PER_BAND;
+	const int min_rows = min_rows_per_band_for_filter(nearest);
 	parallel_for_rows(
 			p_grid.rows,
 			[&](int p_begin, int p_end) {

@@ -6,11 +6,6 @@
 
 using namespace godot;
 
-// The decoration half of the planner: once the walk has produced a path, these
-// turn it into rooms, hang branches off it, place the boss and pick each room's
-// template. Split from the walk in hive_gen_core.cpp; both halves must stay
-// call-for-call identical to the GDScript original.
-
 Dictionary HiveGenCore::_make_room(const Vector2i &p_cell, const String &p_kind, int p_order, int p_parent_order) {
 	Dictionary room;
 	room["cell"] = p_cell;
@@ -22,20 +17,25 @@ Dictionary HiveGenCore::_make_room(const Vector2i &p_cell, const String &p_kind,
 	return room;
 }
 
-// Rooms in path order: start, then combat with one shop at the midpoint, and
-// the reward at the end, each connected to its predecessor.
+static String room_kind_for_order(int p_order, int p_shop_order, int p_last_order) {
+	if (p_order == 0) {
+		return "start";
+	}
+	if (p_order == p_shop_order) {
+		return "shop";
+	}
+	if (p_order == p_last_order) {
+		return "reward";
+	}
+	return "combat";
+}
+
 Array HiveGenCore::_rooms_along_path(const std::vector<Vector2i> &p_path) const {
 	const int shop_order = (int)std::floor((double)p_path.size() / 2.0);
+	const int last_order = (int)p_path.size() - 1;
 	Array rooms;
 	for (int order = 0; order < (int)p_path.size(); order++) {
-		String kind = "combat";
-		if (order == 0) {
-			kind = "start";
-		} else if (order == shop_order) {
-			kind = "shop";
-		} else if (order == (int)p_path.size() - 1) {
-			kind = "reward";
-		}
+		const String kind = room_kind_for_order(order, shop_order, last_order);
 		rooms.push_back(_make_room(p_path[(size_t)order], kind, order, order - 1));
 	}
 	for (int order = 1; order < (int)p_path.size(); order++) {
@@ -44,8 +44,6 @@ Array HiveGenCore::_rooms_along_path(const std::vector<Vector2i> &p_path) const 
 	return rooms;
 }
 
-// The boss room takes a free neighbour of the reward cell, preferring the
-// walk's forward side. Fails when the reward cell is fully surrounded.
 bool HiveGenCore::_append_boss_room(const Ref<RandomNumberGenerator> &p_rng, Array &r_rooms,
 		int p_heading, CellSet &r_occupied) const {
 	Dictionary reward = r_rooms[r_rooms.size() - 1];
@@ -61,18 +59,21 @@ bool HiveGenCore::_append_boss_room(const Ref<RandomNumberGenerator> &p_rng, Arr
 	return true;
 }
 
-// Branches hang off shuffled mid-path combat cells. Missing space is tolerated
-// (a floor without branches is valid, just less generous).
-void HiveGenCore::_append_branch_rooms(const Ref<RandomNumberGenerator> &p_rng, Array &r_rooms,
-		int p_branch_count, CellSet &r_occupied) const {
-	const String branch_kinds[2] = { String("branch_treasure"), String("branch_altar") };
+static Array combat_rooms(const Array &p_rooms) {
 	Array hosts;
-	for (int i = 0; i < r_rooms.size(); i++) {
-		Dictionary room = r_rooms[i];
+	for (int i = 0; i < p_rooms.size(); i++) {
+		Dictionary room = p_rooms[i];
 		if (String(room["kind"]) == String("combat")) {
 			hosts.push_back(room);
 		}
 	}
+	return hosts;
+}
+
+void HiveGenCore::_append_branch_rooms(const Ref<RandomNumberGenerator> &p_rng, Array &r_rooms,
+		int p_branch_count, CellSet &r_occupied) const {
+	const String branch_kinds[2] = { String("branch_treasure"), String("branch_altar") };
+	Array hosts = combat_rooms(r_rooms);
 	_shuffle(p_rng, hosts);
 	int placed_branches = 0;
 	for (int i = 0; i < hosts.size(); i++) {
@@ -93,9 +94,6 @@ void HiveGenCore::_append_branch_rooms(const Ref<RandomNumberGenerator> &p_rng, 
 	}
 }
 
-// Combat rooms avoid repeating the previous template pick; a start room with
-// no dedicated template falls back to the combat pool. Fails when a required
-// role has no usable template at all.
 bool HiveGenCore::_assign_room_templates(const Ref<RandomNumberGenerator> &p_rng, Array &r_rooms,
 		const Array &p_pool_data) const {
 	int previous_combat = -1;
@@ -118,9 +116,6 @@ bool HiveGenCore::_assign_room_templates(const Ref<RandomNumberGenerator> &p_rng
 	return true;
 }
 
-// Sets the doorway bit on both rooms of an adjacent pair. Dictionaries are
-// shared references, so mutating the local copy updates the plan in place
-// (matching the GDScript pass-by-reference semantics).
 void HiveGenCore::_connect_rooms(Dictionary p_room_a, Dictionary p_room_b) const {
 	const Vector2i delta = Vector2i(p_room_b["cell"]) - Vector2i(p_room_a["cell"]);
 	int dir = -1;
@@ -137,8 +132,6 @@ void HiveGenCore::_connect_rooms(Dictionary p_room_a, Dictionary p_room_b) const
 	p_room_b["connections"] = (int)p_room_b["connections"] | (1 << ((dir + 2) % 4));
 }
 
-// Weighted template pick among pool entries of the given kind, avoiding
-// `avoid_index` when alternatives exist. -1 when the kind has no usable entry.
 int HiveGenCore::_pick_template(const Ref<RandomNumberGenerator> &p_rng, const Array &p_pool_data,
 		const String &p_kind, int p_avoid_index) const {
 	std::vector<int> candidates;
@@ -180,7 +173,6 @@ int HiveGenCore::_pick_template(const Ref<RandomNumberGenerator> &p_rng, const A
 	return usable.back();
 }
 
-// Seeded Fisher-Yates so plans stay deterministic.
 void HiveGenCore::_shuffle(const Ref<RandomNumberGenerator> &p_rng, Array &p_arr) const {
 	for (int i = (int)p_arr.size() - 1; i > 0; i--) {
 		const int j = p_rng->randi_range(0, i);

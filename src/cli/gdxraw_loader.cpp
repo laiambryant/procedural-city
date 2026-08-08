@@ -12,8 +12,6 @@ using namespace godot;
 
 namespace {
 
-// Header layout: bytes 0-3 magic "GDXR", 4 version, 5 format code,
-// 6-7 reserved, 8-11 width (u32 LE), 12-15 height (u32 LE).
 constexpr int GDXRAW_HEADER_SIZE = (int)GDXRAW_HEADER_BYTES;
 constexpr uint8_t GDXRAW_VERSION = 1;
 constexpr int GDXRAW_VERSION_OFFSET = 4;
@@ -21,10 +19,6 @@ constexpr int GDXRAW_FORMAT_OFFSET = 5;
 constexpr int GDXRAW_WIDTH_OFFSET = 8;
 constexpr int GDXRAW_HEIGHT_OFFSET = 12;
 
-// Leading bytes identifying the two formats the CLIs emit. load_map_image
-// matches these against file content rather than against the filename, because
-// a CLI build without raw support writes PNG bytes to whatever path it is
-// handed -- including one named .gdxraw.
 constexpr uint8_t GDXRAW_MAGIC[] = { 'G', 'D', 'X', 'R' };
 constexpr uint8_t PNG_MAGIC[] = { 0x89, 'P', 'N', 'G', 0x0D, 0x0A, 0x1A, 0x0A };
 
@@ -85,9 +79,6 @@ bool parse_gdxraw_header(const uint8_t *p_bytes, int64_t p_size, int &r_width, i
 	return true;
 }
 
-// decode_png_bytes decodes PNG content already held in memory. Image::load_from_file
-// cannot stand in here: it picks a decoder from the filename extension, so it
-// rejects PNG bytes stored under a .gdxraw name.
 Ref<Image> decode_png_bytes(const PackedByteArray &p_bytes) {
 	Ref<Image> image;
 	image.instantiate();
@@ -108,13 +99,17 @@ GdxrawStreamDecoder::GdxrawStreamDecoder(int64_t p_known_stream_bytes, int64_t p
 	}
 }
 
+bool GdxrawStreamDecoder::has_known_stream_length() const {
+	return known_stream_bytes >= 0;
+}
+
 bool GdxrawStreamDecoder::parse_header() {
 	if (!parse_gdxraw_header(header, GDXRAW_HEADER_SIZE, width, height, format, expected_payload_bytes)) {
 		failed = true;
 		return false;
 	}
 	if (expected_payload_bytes > max_payload_bytes ||
-			(known_stream_bytes >= 0 && known_stream_bytes - GDXRAW_HEADER_SIZE != expected_payload_bytes)) {
+			(has_known_stream_length() && known_stream_bytes - GDXRAW_HEADER_SIZE != expected_payload_bytes)) {
 		failed = true;
 		return false;
 	}
@@ -128,7 +123,7 @@ bool GdxrawStreamDecoder::append(const uint8_t *p_bytes, int64_t p_size) {
 		return false;
 	}
 	const int64_t received = header_bytes + payload_bytes;
-	if (known_stream_bytes >= 0 && (received > known_stream_bytes || p_size > known_stream_bytes - received)) {
+	if (has_known_stream_length() && (received > known_stream_bytes || p_size > known_stream_bytes - received)) {
 		failed = true;
 		return false;
 	}

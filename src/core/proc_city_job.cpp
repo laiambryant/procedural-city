@@ -17,12 +17,8 @@
 
 using namespace godot;
 
-// Weyl-sequence increment from splitmix64 (2^64 / phi): multiplying a small
-// index by it spreads consecutive indices uniformly over the 64-bit range.
 static constexpr uint64_t GOLDEN_GAMMA_64 = 0x9E3779B97F4A7C15ULL;
 
-// mix_seed derives an independent-but-deterministic seed from a base seed and a
-// small index, so the per-channel maps differ while staying reproducible.
 static uint64_t mix_seed(uint64_t p_base, uint64_t p_index) {
 	return p_base ^ (p_index * GOLDEN_GAMMA_64);
 }
@@ -40,9 +36,13 @@ static void add_emit(Array &r_emits, const String &p_mode, uint64_t p_seed, cons
 	r_emits.push_back(e);
 }
 
-// The four grayscale maps TEX_CHANNELS routes into R/G/B/Roughness, paired with
-// the result key each one is recorded under.
-static const char *CHANNEL_KEYS[4][3] = {
+struct ChannelEmitSpec {
+	const char *suffix;
+	const char *result_path_key;
+	const char *result_image_key;
+};
+
+static const ChannelEmitSpec CHANNEL_EMIT_SPECS[4] = {
 	{ "_r", "r_path", "r_image" },
 	{ "_g", "g_path", "g_image" },
 	{ "_b", "b_path", "b_image" },
@@ -50,11 +50,12 @@ static const char *CHANNEL_KEYS[4][3] = {
 };
 
 static void add_channel_emits(Array &r_emits, const String &p_base, uint64_t p_base_seed, const String &p_ext, Dictionary &r_result) {
-	for (uint64_t i = 0; i < std::size(CHANNEL_KEYS); i++) {
-		const String out = p_base + String(CHANNEL_KEYS[i][0]) + p_ext;
+	for (uint64_t i = 0; i < std::size(CHANNEL_EMIT_SPECS); i++) {
+		const ChannelEmitSpec &spec = CHANNEL_EMIT_SPECS[i];
+		const String out = p_base + String(spec.suffix) + p_ext;
 		add_emit(r_emits, "grayscale", mix_seed(p_base_seed, i + 1), out,
-				CHANNEL_KEYS[i][2], true, false, i < 3);
-		r_result[CHANNEL_KEYS[i][1]] = out;
+				spec.result_image_key, true, false, i < 3);
+		r_result[spec.result_path_key] = out;
 	}
 }
 
@@ -89,8 +90,6 @@ Array godot::plan_bundle_emits(const String &p_dir, uint64_t p_base_seed, bool p
 	return emits;
 }
 
-// MapLoad names one CLI output: where its path was recorded, where the decoded
-// image belongs, and which pipeline stage owns the failure if it is missing.
 struct MapLoad {
 	const char *path_key;
 	const char *image_key;
@@ -110,11 +109,6 @@ static const MapLoad MAP_LOADS[] = {
 	{ "rough_path", "rough_image", "material", true, false, false },
 };
 
-// Disk fallbacks decode and prepare one map at a time. This deliberately gives
-// up multi-map decode concurrency: with 8192 maps it avoids retaining six
-// full-resolution images until the last decoder joins. In-memory server maps
-// have already taken this same preparation path, and this idempotent pass also
-// protects callers that supply an older unprepared server result.
 bool godot::load_result_images(Dictionary &r_result, const Dictionary &p_images, int p_material_max_size,
 		bool p_mipmaps, String &r_fail_stage, String &r_fail_message) {
 	for (const MapLoad &load : MAP_LOADS) {
@@ -155,11 +149,36 @@ static Ref<Image> result_image_or_null(const Dictionary &p_result, const char *p
 	return image;
 }
 
-// Finalize cross-map material work on the worker. Independent maps were
-// already resized as they arrived. Channel mode now composes its albedo here,
-// so the main thread never generates it (or mips it) while installing a city.
-// Shared mode takes a shading-only copy of height: geometry keeps the original
-// full-resolution image while roughness obeys the material upload cap.
+static void finalize_shared_mode_roughness(Dictionary &r_result, int p_max_size, bool p_mipmaps) {
+	Ref<Image> height = result_image_or_null(r_result, "height_image");
+	if (height.is_null()) {
+		height = result_image_or_null(r_result, "shared_height_image");
+	}
+	if (height.is_valid() && !height->is_empty()) {
+		Ref<Image> shading_only_roughness = height->duplicate();
+		prepare_material_image(shading_only_roughness, p_max_size, p_mipmaps);
+		r_result["rough_image"] = shading_only_roughness;
+	}
+	r_result.erase("shared_height_image");
+}
+
+static void finalize_channel_mode_albedo(Dictionary &r_result, int p_max_size, bool p_mipmaps) {
+	Ref<Image> red = result_image_or_null(r_result, "r_image");
+	Ref<Image> green = result_image_or_null(r_result, "g_image");
+	Ref<Image> blue = result_image_or_null(r_result, "b_image");
+	prepare_material_image(red, p_max_size, false);
+	prepare_material_image(green, p_max_size, false);
+	prepare_material_image(blue, p_max_size, false);
+	Ref<Image> albedo = compose_rgb_albedo(red, green, blue);
+	if (albedo.is_valid()) {
+		prepare_material_image(albedo, p_max_size, p_mipmaps);
+		r_result["albedo_image"] = albedo;
+		r_result.erase("r_image");
+		r_result.erase("g_image");
+		r_result.erase("b_image");
+	}
+}
+
 void godot::prepare_material_images(Dictionary &r_result, int p_max_size, bool p_mipmaps) {
 	const int texture_mode = (int)r_result.get("texture_mode", ProcCityGenerator::TEX_SINGLE);
 	prepare_material_image(result_image_or_null(r_result, "albedo_image"), p_max_size, p_mipmaps);
@@ -167,33 +186,11 @@ void godot::prepare_material_images(Dictionary &r_result, int p_max_size, bool p
 	prepare_material_image(result_image_or_null(r_result, "rough_image"), p_max_size, p_mipmaps);
 
 	if (texture_mode == ProcCityGenerator::TEX_SHARED) {
-		Ref<Image> height = result_image_or_null(r_result, "height_image");
-		if (height.is_null()) {
-			height = result_image_or_null(r_result, "shared_height_image");
-		}
-		if (height.is_valid() && !height->is_empty()) {
-			Ref<Image> roughness = height->duplicate();
-			prepare_material_image(roughness, p_max_size, p_mipmaps);
-			r_result["rough_image"] = roughness;
-		}
-		r_result.erase("shared_height_image");
+		finalize_shared_mode_roughness(r_result, p_max_size, p_mipmaps);
 		return;
 	}
 	if (texture_mode == ProcCityGenerator::TEX_CHANNELS) {
-		Ref<Image> red = result_image_or_null(r_result, "r_image");
-		Ref<Image> green = result_image_or_null(r_result, "g_image");
-		Ref<Image> blue = result_image_or_null(r_result, "b_image");
-		prepare_material_image(red, p_max_size, false);
-		prepare_material_image(green, p_max_size, false);
-		prepare_material_image(blue, p_max_size, false);
-		Ref<Image> albedo = compose_rgb_albedo(red, green, blue);
-		if (albedo.is_valid()) {
-			prepare_material_image(albedo, p_max_size, p_mipmaps);
-			r_result["albedo_image"] = albedo;
-			r_result.erase("r_image");
-			r_result.erase("g_image");
-			r_result.erase("b_image");
-		}
+		finalize_channel_mode_albedo(r_result, p_max_size, p_mipmaps);
 	}
 }
 
@@ -217,9 +214,6 @@ static Dictionary cell_height_result(const Dictionary &p_job, const std::vector<
 	return result;
 }
 
-// build_job_meshes returns every mesh the job's build mode produces. Hex is
-// always one mesh; blocks honour geometry_chunks, so a chunked city has its
-// tiles built on the worker exactly like the single mesh they replace.
 static TypedArray<ArrayMesh> build_job_meshes(const Dictionary &p_job, const Ref<Image> &p_height, int p_mode,
 		Dictionary &r_result) {
 	Ref<HeightmapMesher> mesher;

@@ -64,10 +64,6 @@ void emit_cell(PackedSurface::Writer &p_writer, const BlockUvMap &p_uv_map,
 	}
 }
 
-// Ground plane under one cell rect at y=0, closing the view through the streets
-// that open up once blocks go freestanding. Chunked geometry gives each chunk
-// its own patch so it culls with the chunk instead of keeping a grid-wide quad
-// (and its whole AABB) permanently visible.
 void emit_ground(PackedSurface::Writer &p_writer, const BlockUvMap &p_uv_map, const CellGrid &p_grid,
 		const CellRect &p_rect, float p_y) {
 	const float x0 = p_grid.ox + p_grid.cw * (float)p_rect.i0;
@@ -98,9 +94,6 @@ Ref<ArrayMesh> HeightmapMesher::build_array_mesh(const Ref<Image> &p_image, cons
 			p_height_power, p_inset, p_seed, p_ao, p_variation, p_clip_below_height, heights);
 }
 
-// build_rect_mesh emits the cells of one rect into a fresh surface. Neighbour
-// culling reads the whole height grid, so a mesh built per chunk is identical,
-// triangle for triangle, to the corresponding slice of the single-mesh build.
 static Ref<ArrayMesh> build_rect_mesh(const std::vector<float> &p_heights, const CellGrid &p_grid,
 		const BlockStyle &p_style, const BlockUvMap &p_uv_map, const CellRect &p_rect,
 		float p_inset, bool p_freestanding, float p_clip_below) {
@@ -147,8 +140,6 @@ Ref<ArrayMesh> HeightmapMesher::build_array_mesh_with_heights(const Ref<Image> &
 	return build_rect_mesh(r_heights, grid, style, uv_map, CellRect::whole(grid), inset, inset > 0.0f, clip_below);
 }
 
-// chunk_rect carves the grid into p_chunks x p_chunks tiles, giving the trailing
-// tile whatever remainder is left so every cell lands in exactly one chunk.
 static CellRect chunk_rect(const CellGrid &p_grid, int p_chunks, int p_cx, int p_cz) {
 	const int step_i = (p_grid.cols + p_chunks - 1) / p_chunks;
 	const int step_j = (p_grid.rows + p_chunks - 1) / p_chunks;

@@ -29,8 +29,6 @@ void GoplacementxRunner::_bind_methods() {
 			&GoplacementxRunner::run_bundle);
 }
 
-// append_size_flags appends either explicit --width/--height (when both are set)
-// or --resolution, matching the CLI's sizing precedence.
 static void append_size_flags(PackedStringArray &r_args, const Ref<GoplacementxParams> &p_params) {
 	const int width = p_params.is_valid() ? p_params->get_out_width() : 0;
 	const int height = p_params.is_valid() ? p_params->get_out_height() : 0;
@@ -51,8 +49,6 @@ static void append_invert_flag(PackedStringArray &r_args, const Ref<Goplacementx
 	}
 }
 
-// The gradient only affects color emits; grayscale and normal emits ignore it,
-// so it is always safe to append.
 static void append_gradient_flag(PackedStringArray &r_args, const Ref<GoplacementxParams> &p_params) {
 	if (p_params.is_null()) {
 		return;
@@ -102,15 +98,9 @@ String GoplacementxRunner::write_config(const String &p_dir, const Ref<Goplaceme
 	return path;
 }
 
-// Bits the engine's 32-bit randi() is shifted up by so its entropy lands clear
-// of the low microsecond bits, and the shift that spreads the clock across the
-// high half of the 64-bit seed.
 static constexpr int SEED_RANDOM_SHIFT = 21;
 static constexpr int SEED_CLOCK_SHIFT = 32;
 
-// unpredictable_seed folds engine randomness into the microsecond clock,
-// shifting each source so its entropy lands in a distinct bit range. Neither
-// source alone is enough: the clock is guessable and randi() is only 32 bits.
 static int64_t unpredictable_seed() {
 	const uint64_t t = Time::get_singleton()->get_ticks_usec();
 	const uint64_t r = (uint64_t)(uint32_t)UtilityFunctions::randi();
@@ -148,6 +138,20 @@ Dictionary GoplacementxRunner::run_generate(const String &p_binary, const String
 	return result;
 }
 
+struct EmitSpec {
+	String mode;
+	uint64_t seed = 0;
+	String path;
+};
+
+static EmitSpec read_emit_spec(const Dictionary &p_emit) {
+	EmitSpec spec;
+	spec.mode = p_emit.get("mode", "grayscale");
+	spec.seed = (uint64_t)(int64_t)p_emit.get("seed", 0);
+	spec.path = p_emit.get("path", "");
+	return spec;
+}
+
 Dictionary GoplacementxRunner::run_bundle(const String &p_binary, const String &p_config,
 		const Array &p_emits, const Ref<GoplacementxParams> &p_params) const {
 	PackedStringArray args;
@@ -160,15 +164,12 @@ Dictionary GoplacementxRunner::run_bundle(const String &p_binary, const String &
 	append_gradient_flag(args, p_params);
 
 	for (int i = 0; i < p_emits.size(); i++) {
-		const Dictionary e = p_emits[i];
-		const String mode = e.get("mode", "grayscale");
-		const uint64_t seed = (uint64_t)(int64_t)e.get("seed", 0);
-		const String path = e.get("path", "");
-		if (path.is_empty()) {
+		const EmitSpec emit = read_emit_spec(p_emits[i]);
+		if (emit.path.is_empty()) {
 			continue;
 		}
 		args.push_back("--emit");
-		args.push_back(mode + String(":") + String::num_uint64(seed) + String(":") + path);
+		args.push_back(emit.mode + String(":") + String::num_uint64(emit.seed) + String(":") + emit.path);
 	}
 
 	return execute_cli(p_binary, args);

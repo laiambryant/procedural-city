@@ -7,10 +7,6 @@
 
 using namespace godot;
 
-// The JSON shape mirrors the goplacementx Params struct: camelCase keys, dual
-// [min,max] ranges as two-element arrays, sprite packs and composition modes
-// as name lists.
-
 static Array dual_to_array(const Vector2i &p_v) {
 	Array a;
 	a.push_back(p_v.x);

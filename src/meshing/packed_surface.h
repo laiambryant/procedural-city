@@ -12,10 +12,6 @@
 
 namespace godot {
 
-// PackedSurface is the indexed-triangle sink shared by the mesh backends:
-// exact-size packed arrays written through raw pointers, analytic per-face
-// tangents instead of a mikktspace pass. Writers own disjoint vertex/index
-// ranges, so worker threads fill bands concurrently with deterministic output.
 class PackedSurface {
 public:
 	struct Cursor {

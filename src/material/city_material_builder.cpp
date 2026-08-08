@@ -56,9 +56,6 @@ static void apply_sampling_options(const Ref<BaseMaterial3D> &p_mat, const CityM
 	p_mat->set_flag(BaseMaterial3D::FLAG_USE_TEXTURE_REPEAT, p_spec.repeat);
 }
 
-// The meshers bake AO and per-cell tint into vertex colours; this multiplies
-// them into the albedo. Meshes without a COLOR array are unaffected, so it is
-// safe to enable for every backend.
 static void enable_baked_vertex_colours(const Ref<BaseMaterial3D> &p_mat) {
 	p_mat->set_flag(BaseMaterial3D::FLAG_ALBEDO_FROM_VERTEX_COLOR, true);
 }

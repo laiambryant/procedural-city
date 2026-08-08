@@ -7,25 +7,22 @@
 
 using namespace godot;
 
-// Everything that turns the palette parameters into the gradient string the CLI
-// takes on its command line: the built-in presets, the hex conversions, and the
-// seeded random palette behind the Randomize Palette button.
-
 struct PalettePreset {
+	const char *name;
 	int count;
 	uint32_t colors[5];
 };
 
 static const PalettePreset PALETTE_PRESETS[] = {
-	{ 0, {} }, // Custom: use the user-edited gradient_colors
-	{ 2, { 0x000000, 0xffffff } }, // Grayscale
-	{ 3, { 0x00ffff, 0x9500ff, 0xffe500 } }, // DisplacementX (goplacementx default)
-	{ 5, { 0x000000, 0x7a0000, 0xff6a00, 0xffe808, 0xffffff } }, // Fire
-	{ 4, { 0x001b2e, 0x1b4965, 0x5fa8d3, 0xcae9ff } }, // Ocean
-	{ 5, { 0x2b0a3d, 0x7b2d6b, 0xe85d75, 0xffb86b, 0xffe9a8 } }, // Sunset
-	{ 3, { 0xff00ff, 0x00ffff, 0xfaff00 } }, // Neon
-	{ 5, { 0x2a4d1e, 0x6b8e23, 0xc2b280, 0x8b5a2b, 0xffffff } }, // Terrain
-	{ 4, { 0x440154, 0x31688e, 0x35b779, 0xfde725 } }, // Viridis
+	{ "Custom", 0, {} },
+	{ "Grayscale", 2, { 0x000000, 0xffffff } },
+	{ "DisplacementX", 3, { 0x00ffff, 0x9500ff, 0xffe500 } },
+	{ "Fire", 5, { 0x000000, 0x7a0000, 0xff6a00, 0xffe808, 0xffffff } },
+	{ "Ocean", 4, { 0x001b2e, 0x1b4965, 0x5fa8d3, 0xcae9ff } },
+	{ "Sunset", 5, { 0x2b0a3d, 0x7b2d6b, 0xe85d75, 0xffb86b, 0xffe9a8 } },
+	{ "Neon", 3, { 0xff00ff, 0x00ffff, 0xfaff00 } },
+	{ "Terrain", 5, { 0x2a4d1e, 0x6b8e23, 0xc2b280, 0x8b5a2b, 0xffffff } },
+	{ "Viridis", 4, { 0x440154, 0x31688e, 0x35b779, 0xfde725 } },
 };
 
 static Color color_from_hex(uint32_t p_hex) {
@@ -47,8 +44,6 @@ static PackedColorArray preset_palette(int p_idx) {
 	return a;
 }
 
-// Colour channels are floats in [0, 1]; the gradient string the CLI takes wants
-// them as 8-bit hex, so each channel scales by this and rounds.
 static constexpr float COLOR_BYTE_MAX = 255.0f;
 
 static String byte_to_hex(int p_v) {
@@ -84,6 +79,38 @@ String GoplacementxParams::gradient_to_string() const {
 	return out;
 }
 
+constexpr float HUE_SPAN_MIN = 0.1f;
+constexpr float HUE_SPAN_MAX = 0.6f;
+constexpr float SATURATION_MIN = 0.5f;
+constexpr float SATURATION_MAX = 1.0f;
+constexpr float VALUE_DARKEST = 0.15f;
+constexpr float VALUE_BRIGHTEST = 1.0f;
+
+struct HeightAlbedoRamp {
+	float base_hue;
+	float hue_span;
+	bool ascending;
+};
+
+static HeightAlbedoRamp make_height_albedo_ramp(const Ref<RandomNumberGenerator> &p_rng) {
+	HeightAlbedoRamp ramp;
+	ramp.base_hue = p_rng->randf();
+	ramp.hue_span = p_rng->randf_range(HUE_SPAN_MIN, HUE_SPAN_MAX);
+	ramp.ascending = p_rng->randf() < 0.5f;
+	return ramp;
+}
+
+static Color height_albedo_ramp_color(const HeightAlbedoRamp &p_ramp, float p_t, const Ref<RandomNumberGenerator> &p_rng) {
+	float h = p_ramp.base_hue + (p_ramp.ascending ? p_t : -p_t) * p_ramp.hue_span;
+	h -= (float)(int)h;
+	if (h < 0.0f) {
+		h += 1.0f;
+	}
+	const float s = p_rng->randf_range(SATURATION_MIN, SATURATION_MAX);
+	const float v = VALUE_DARKEST + p_t * (VALUE_BRIGHTEST - VALUE_DARKEST);
+	return Color::from_hsv(h, s, v);
+}
+
 void GoplacementxParams::generate_random_palette(int p_stops, int p_seed) {
 	if (p_stops < GPX_MIN_PALETTE_STOPS) {
 		p_stops = GPX_MIN_PALETTE_STOPS;
@@ -96,30 +123,12 @@ void GoplacementxParams::generate_random_palette(int p_stops, int p_seed) {
 		rng->randomize();
 	}
 
-	// The ramp walks hue over a limited span while value rises dark -> light,
-	// so the palette reads well as a height-mapped albedo.
-	constexpr float HUE_SPAN_MIN = 0.1f;
-	constexpr float HUE_SPAN_MAX = 0.6f;
-	constexpr float SATURATION_MIN = 0.5f;
-	constexpr float SATURATION_MAX = 1.0f;
-	constexpr float VALUE_DARKEST = 0.15f;
-	constexpr float VALUE_BRIGHTEST = 1.0f;
-
-	const float base_h = rng->randf();
-	const float hue_span = rng->randf_range(HUE_SPAN_MIN, HUE_SPAN_MAX);
-	const bool ascending = rng->randf() < 0.5f;
+	const HeightAlbedoRamp ramp = make_height_albedo_ramp(rng);
 
 	PackedColorArray a;
 	for (int i = 0; i < p_stops; i++) {
 		const float t = (p_stops > 1) ? (float)i / (float)(p_stops - 1) : 0.0f;
-		float h = base_h + (ascending ? t : -t) * hue_span;
-		h -= (float)(int)h;
-		if (h < 0.0f) {
-			h += 1.0f;
-		}
-		const float s = rng->randf_range(SATURATION_MIN, SATURATION_MAX);
-		const float v = VALUE_DARKEST + t * (VALUE_BRIGHTEST - VALUE_DARKEST);
-		a.push_back(Color::from_hsv(h, s, v));
+		a.push_back(height_albedo_ramp_color(ramp, t, rng));
 	}
 
 	gradient_colors = a;

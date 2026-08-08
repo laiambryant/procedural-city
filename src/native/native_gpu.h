@@ -12,17 +12,6 @@ namespace godot {
 
 class RenderingDevice;
 
-// Runs the engine's compute shader on a local RenderingDevice.
-//
-// A session owns its device for the whole bundle, so several seeds share one
-// bring-up and one shader compile, and releases it on the thread that created
-// it. That thread affinity is why the device is not cached across generations:
-// a RenderingDevice must be torn down from its own thread, and the module
-// unloads on the main one.
-//
-// begin() failing is a normal outcome, not an error: renderers without a
-// RenderingDevice (the Compatibility renderer, web exports) simply have no GPU
-// backend, and the caller falls back to the CPU one.
 class NativeGpuSession {
 public:
 	bool begin(String &r_error);

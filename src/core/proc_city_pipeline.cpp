@@ -9,8 +9,6 @@
 
 using namespace godot;
 
-// Ratio reported on generation_progress once the height stage of a combined
-// run has finished.
 static constexpr double PROGRESS_HEIGHT_DONE = 0.5;
 
 static Ref<Image> image_or_null(const Dictionary &p_result, const char *p_key) {
@@ -18,6 +16,15 @@ static Ref<Image> image_or_null(const Dictionary &p_result, const char *p_key) {
 		return p_result[p_key];
 	}
 	return Ref<Image>();
+}
+
+static Ref<GoplacementxParams> snapshot_params_for_worker(const Ref<GoplacementxParams> &p_params) {
+	Ref<Resource> duplicate = p_params->duplicate(true);
+	return Ref<GoplacementxParams>(duplicate);
+}
+
+static bool job_needs_existing_height_image(int p_stages, bool p_height_image_valid) {
+	return (p_stages & ProcCityGenerator::STAGE_MATERIAL) && !(p_stages & ProcCityGenerator::STAGE_HEIGHT) && p_height_image_valid;
 }
 
 static void remove_file(const String &p_path) {
@@ -30,8 +37,6 @@ static void remove_file(const String &p_path) {
 	}
 }
 
-// _pipeline_label names the run for the generation_started signal: the stage
-// set collapses to whichever end of the pipeline is being asked for.
 String ProcCityGenerator::_pipeline_label(int p_stages) {
 	if ((p_stages & STAGE_HEIGHT) && !(p_stages & STAGE_MATERIAL)) {
 		return "displacement";
@@ -77,14 +82,9 @@ void ProcCityGenerator::_start_pipeline(int p_stages, bool p_fresh_seed) {
 	_worker->start(Callable(this, "_thread_body").bind(_snapshot_job(p_stages)));
 }
 
-// _snapshot_job copies every input the worker needs into the job payload: the
-// worker must never read member fields the main thread could mutate mid-run.
 Dictionary ProcCityGenerator::_snapshot_job(int p_stages) const {
 	Dictionary job;
-	// The worker must not observe inspector/script mutations made after this
-	// launch. Resource refs are shared by default, so snapshot the properties.
-	Ref<Resource> params_copy = params->duplicate(true);
-	job["params"] = Ref<GoplacementxParams>(params_copy);
+	job["params"] = snapshot_params_for_worker(params);
 	job["stages"] = p_stages;
 	job["generation_mode"] = generation_mode;
 	job["seed"] = _resolved_seed;
@@ -115,10 +115,7 @@ Dictionary ProcCityGenerator::_snapshot_job(int p_stages) const {
 	job["color_variation"] = color_variation;
 	job["material_max_size"] = material_max_size;
 	job["texture_filter"] = texture_filter;
-	if ((p_stages & STAGE_MATERIAL) && !(p_stages & STAGE_HEIGHT) && _height_image.is_valid()) {
-		// TEX_SHARED needs a shading-only roughness copy. Holding this immutable
-		// Ref in the snapshot lets the worker duplicate/downsize it without a
-		// full-resolution copy or resize on the main thread.
+	if (job_needs_existing_height_image(p_stages, _height_image.is_valid())) {
 		job["existing_height_image"] = _height_image;
 	}
 	job["height_inputs_revision"] = _height_inputs_revision;
@@ -199,7 +196,6 @@ void ProcCityGenerator::_finish_worker() {
 	_busy = false;
 }
 
-// Every intermediate the run wrote, in the order the result records them.
 static const char *TEMP_PATH_KEYS[] = {
 	"height_path", "albedo_path", "normal_path",
 	"r_path", "g_path", "b_path", "rough_path", "config_path"

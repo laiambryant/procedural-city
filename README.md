@@ -21,6 +21,18 @@
   <sub>96×96 blocks from a 2048 px field, generated in ~350 ms per city — recorded from <code>demo/scenes/main.tscn</code>.</sub>
 </p>
 
+<table align="center">
+  <tr>
+    <td><img src="docs/media/sample-city-amber.png" width="266" alt="Generated city, amber palette"></td>
+    <td><img src="docs/media/sample-city-jade.png" width="266" alt="Generated city, jade palette"></td>
+    <td><img src="docs/media/sample-city-ember.png" width="266" alt="Generated city, ember palette"></td>
+  </tr>
+</table>
+
+<p align="center">
+  <sub>Same pipeline, three seeds — palette, skyline and street layout all fall out of the seed.</sub>
+</p>
+
 ---
 
 ## What it does
@@ -213,6 +225,13 @@ godot --headless --path demo --script tests/scene_size.gd        # persisted sce
 
 `bench_*.gd` scripts in the same folder time the pipeline and the mesher
 backends.
+
+## Credits
+
+The displacement-field generator this pipeline builds on traces back to
+[satelllte/displacementx](https://github.com/satelllte/displacementx); the
+native and legacy CLI backends listed above are this project's own
+reimplementations of that lineage.
 
 ## License
 

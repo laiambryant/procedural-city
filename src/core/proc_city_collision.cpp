@@ -36,19 +36,15 @@ void ProcCityGenerator::_attach_trimesh_body(MeshInstance3D *p_mesh_instance) {
 	add_trimesh_body(p_mesh_instance, p_mesh_instance->get_mesh(), collision_layer);
 }
 
-// MultiMesh instances have no merged mesh; build the equivalent extruded-blocks
-// mesh purely as a collision source.
 void ProcCityGenerator::_attach_multimesh_body(Node3D *p_container) {
 	Ref<HeightmapMesher> mesher;
 	mesher.instantiate();
-	Ref<ArrayMesh> source = mesher->build_array_mesh(_height_image, mesh_size, grid_vertices, height_scale, base_height,
+	Ref<ArrayMesh> collision_source_mesh = mesher->build_array_mesh(_height_image, mesh_size, grid_vertices, height_scale, base_height,
 			sample_filter, height_power, block_inset, 0, 0.0, 0.0,
 			clip_below_height);
-	add_trimesh_body(p_container, source, collision_layer);
+	add_trimesh_body(p_container, collision_source_mesh, collision_layer);
 }
 
-// A GridMap is its own collider: the shapes came from its MeshLibrary items, so
-// only the layers are left to match what the StaticBody3D backends set.
 static void set_gridmap_layers(GridMap *p_gridmap, int p_collision_layer) {
 	p_gridmap->set_collision_layer((uint32_t)p_collision_layer);
 	p_gridmap->set_collision_mask(0);

@@ -70,8 +70,6 @@ static BundleInputs collect_inputs(const Array &p_emits, const Ref<GoplacementxP
 	return inputs;
 }
 
-// Renders one seed's height field. A GPU session that failed to come up is
-// passed in already closed, so the CPU path takes over without another attempt.
 static cppdx::Canvas render_field(const BundleInputs &p_inputs, int64_t p_seed, NativeGpuSession *p_gpu, bool &r_used_gpu) {
 	const uint32_t width = (uint32_t)p_inputs.size.x;
 	const uint32_t height = (uint32_t)p_inputs.size.y;

@@ -12,31 +12,17 @@
 
 namespace godot {
 
-// The lattice half of the hex backend: where a cell sits once the domain warp
-// and per-cell jitter have moved it, how tall its column is, and where its six
-// corners land. Header-only and inline because every cell of every hive runs
-// through all of it.
-
-// How the [0, 1] warp/jitter strengths translate into geometry. Cell-pitch
-// values are fractions of one lattice cell.
-constexpr float WARP_NOISE_PERIODS = 4.0f; // noise cycles across the lattice
-constexpr float WARP_CENTER_RANGE_CELLS = 1.5f; // max centre drift at warp = 1
-constexpr float JITTER_CENTER_RANGE_CELLS = 0.35f; // max centre offset at jitter = 1
-constexpr float JITTER_HEIGHT_SPAN = 0.35f; // max +-height scale at jitter = 1
-constexpr float JITTER_FOOTPRINT_SPAN = 0.18f; // max footprint shrink at jitter = 1
-constexpr float JITTER_ROTATION_SPAN_RAD = 0.35f; // max cap rotation at jitter = 1
-// Rim towers keep between RIM_HEIGHT_FLOOR and 1.0 of the full rim boost, the
-// remainder salted per cell so the wall reads as irregular towers.
+constexpr float WARP_NOISE_PERIODS = 4.0f;
+constexpr float WARP_CENTER_RANGE_CELLS = 1.5f;
+constexpr float JITTER_CENTER_RANGE_CELLS = 0.35f;
+constexpr float JITTER_HEIGHT_SPAN = 0.35f;
+constexpr float JITTER_FOOTPRINT_SPAN = 0.18f;
+constexpr float JITTER_ROTATION_SPAN_RAD = 0.35f;
 constexpr float RIM_HEIGHT_FLOOR = 0.55f;
 
 constexpr float MAX_HIVE_GAP = 0.5f;
-// Lower bound for the rim falloff distance (metres), guarding the division
-// that normalizes distance into the smoothstep.
 constexpr float MIN_RIM_FALLOFF = 0.001f;
 
-// Pointy-top hexagons on an offset lattice: odd rows shift half a cell so
-// columns interlock at dx spacing, and the corner reach stretches the hexes
-// onto the (dx, dz) cell pitch.
 struct HexLayout {
 	int cols = 1;
 	int rows = 1;
@@ -106,16 +92,12 @@ Vector2 warped_cell_center(const HexLayout &p_layout, const HexStyle &p_style, i
 	return Vector2(cx, cz);
 }
 
-// distance_outside_rect is 0 inside the rect and grows with the XZ distance to
-// its nearest edge outside it.
 float distance_outside_rect(const Rect2 &p_rect, float p_x, float p_z) {
 	const float over_x = MAX(0.0f, MAX(p_rect.position.x - p_x, p_x - (p_rect.position.x + p_rect.size.x)));
 	const float over_z = MAX(0.0f, MAX(p_rect.position.y - p_z, p_z - (p_rect.position.y + p_rect.size.y)));
 	return Math::sqrt(over_x * over_x + over_z * over_z);
 }
 
-// rim_lift raises cells outside the flat rect, smoothstepped over the falloff
-// and salted per cell so the wall reads as irregular towers.
 float rim_lift(const RimProfile &p_rim, const HexStyle &p_style, const Vector2 &p_center, int p_i, int p_j) {
 	if (!p_rim.enabled) {
 		return 0.0f;
@@ -138,8 +120,6 @@ float cell_column_height(const HeightImageView &p_view, const HexLayout &p_layou
 	return MAX(box_h, HEIGHT_EPSILON);
 }
 
-// place_cell_corners shrinks the footprint by the gap and perturbs scale and
-// rotation per cell so caps never read as a printed grid.
 void place_cell_corners(const HexLayout &p_layout, const HexStyle &p_style,
 		const Vector2 &p_center, float p_top, int p_i, int p_j, Vector3 r_corners[6]) {
 	const float cell_scale = (1.0f - p_style.gap) * (1.0f - hash01(p_i, p_j, p_style.seed ^ SALT_CELL_SCALE) * p_style.jitter * JITTER_FOOTPRINT_SPAN);
@@ -153,8 +133,6 @@ void place_cell_corners(const HexLayout &p_layout, const HexStyle &p_style,
 	}
 }
 
-// One cell = a 6-corner cap fan (6 verts, 4 triangles) + 6 wall quads
-// (4 verts, 2 triangles each); the floor is a single quad.
 constexpr int64_t CELL_VERTS = 6 + 6 * 4;
 constexpr int64_t CELL_INDICES = 4 * 3 + 6 * 2 * 3;
 constexpr int64_t FLOOR_VERTS = 4;

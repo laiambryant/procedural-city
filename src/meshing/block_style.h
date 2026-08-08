@@ -12,11 +12,6 @@
 
 namespace godot {
 
-// The baked-look half of the block backend: per-cell tint and the ambient
-// occlusion the roofs and walls carry as vertex colours. Header-only and
-// inline because every cell of every city goes through BlockShader, where an
-// out-of-line call would cost more than the maths it wraps.
-
 struct BlockStyle {
 	float ao = 0.0f;
 	float variation = 0.0f;
@@ -39,9 +34,6 @@ Color grey(float p_v) {
 	return Color(p_v, p_v, p_v);
 }
 
-// BlockShader resolves the baked colours for one cell: its tint, the roof
-// corner occlusion cast by taller neighbours, and the wall gradient that
-// darkens toward canyon floors.
 struct BlockShader {
 	const std::vector<float> &heights;
 	const CellGrid &grid;

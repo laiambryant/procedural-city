@@ -45,8 +45,6 @@ float HeightmapMesher::sample_height(const Ref<Image> &p_image, int p_i, int p_j
 	return sample_cell(view, p_i, p_j, MAX(1, p_cols), MAX(1, p_rows), p_filter);
 }
 
-// The multimesh buffer stores each instance as a row-major 3x4 transform; a
-// scale-only basis leaves just the diagonal and the origin column.
 static constexpr int64_t INSTANCE_TRANSFORM_FLOATS = 12;
 
 static void write_instance_transform(float *p_out, float p_sx, float p_sy, float p_sz,

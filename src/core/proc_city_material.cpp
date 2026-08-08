@@ -10,8 +10,6 @@
 
 using namespace godot;
 
-// Every map in the spec becomes a GPU texture, so the pixels the build is about
-// to upload are what a slow "material" stage is usually waiting on.
 static String describe_material_upload(const CityMaterialSpec &p_spec) {
 	PackedStringArray parts;
 	int64_t bytes = 0;
@@ -90,18 +88,12 @@ void ProcCityGenerator::_release_material_images() {
 	_rough_image.unref();
 }
 
-// _retint_generated_library reaches the one place a GridMap city's look lives.
-// Only a library this node generated is retinted; a user-supplied one is
-// somebody else's resource and keeps the materials it shipped with.
 void ProcCityGenerator::_retint_generated_library(GridMap *p_gridmap) {
 	if (_generated_library.is_valid() && p_gridmap->get_mesh_library() == _generated_library) {
 		apply_library_material(_generated_library, _material);
 	}
 }
 
-// A chunked city is a plain Node3D holding one MeshInstance3D per tile, so the
-// override has to reach the children rather than the container. Recursing also
-// covers any future container shape without another special case.
 static bool override_material_recursive(Node *p_node, const Ref<Material> &p_material) {
 	GeometryInstance3D *gi = Object::cast_to<GeometryInstance3D>(p_node);
 	if (gi != nullptr) {

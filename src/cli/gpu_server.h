@@ -14,14 +14,6 @@
 
 namespace godot {
 
-// ProcCityGpuServer keeps a single persistent gpudisplacementx `serve` process
-// alive for the whole editor/game session, so the ~600 ms GPU bring-up is paid
-// once instead of once per generation. It is registered as an engine singleton
-// and torn down (pipe closed, process reaped) when the module unloads.
-//
-// Requests come from the generator's worker threads and share one GPU device
-// behind one request/response pipe, so every method that touches the pipe holds
-// io_mutex: the server is strictly serial (one request in flight at a time).
 class ProcCityGpuServer : public Object {
 	GDCLASS(ProcCityGpuServer, Object)
 

@@ -9,20 +9,14 @@
 
 using namespace godot;
 
-// Name of the scratch file extract_zip_member stages the in-memory archive as.
 static const char *ZIP_STAGE_NAME = "cli_download.zip";
 
-// POSIX ustar layout: 512-byte blocks, with the header storing the file name in
-// the first 100 bytes, the octal size at offset 124 (12 bytes) and the entry
-// type flag at offset 156. A type of '0' or NUL means a regular file.
 static constexpr int64_t TAR_BLOCK_SIZE = 512;
 static constexpr int TAR_NAME_FIELD_LEN = 100;
 static constexpr int TAR_SIZE_FIELD_OFFSET = 124;
 static constexpr int TAR_SIZE_FIELD_LEN = 12;
 static constexpr int TAR_TYPE_FIELD_OFFSET = 156;
 
-// stage_archive writes the in-memory archive out so ZIPReader has a path to
-// open, and returns that path (empty when the write failed).
 static String stage_archive(const PackedByteArray &p_zip, const String &p_stage_dir) {
 	const String stage = p_stage_dir.path_join(ZIP_STAGE_NAME);
 	Ref<FileAccess> f = FileAccess::open(stage, FileAccess::WRITE);
@@ -77,8 +71,6 @@ static int64_t parse_tar_octal(const uint8_t *p_field, int p_len) {
 	return value;
 }
 
-// A tar stream terminates with zero-filled blocks, so a header whose first byte
-// is NUL means there are no more entries.
 static bool is_end_of_archive(const uint8_t *p_header) {
 	return p_header[0] == 0;
 }
@@ -90,8 +82,24 @@ static String tar_entry_name(const uint8_t *p_header) {
 	return String::utf8(name_buf);
 }
 
-// blocks_for rounds a member's byte size up to whole tar blocks, which is the
-// stride from one header to the next.
+static bool is_regular_tar_entry(uint8_t p_type_flag) {
+	return p_type_flag == '0' || p_type_flag == 0;
+}
+
+struct TarEntryHeader {
+	String name;
+	int64_t size = 0;
+	bool is_regular = false;
+};
+
+static TarEntryHeader read_tar_entry_header(const uint8_t *p_header) {
+	TarEntryHeader entry;
+	entry.name = tar_entry_name(p_header);
+	entry.size = parse_tar_octal(p_header + TAR_SIZE_FIELD_OFFSET, TAR_SIZE_FIELD_LEN);
+	entry.is_regular = is_regular_tar_entry(p_header[TAR_TYPE_FIELD_OFFSET]);
+	return entry;
+}
+
 static int64_t blocks_for(int64_t p_size) {
 	return ((p_size + TAR_BLOCK_SIZE - 1) / TAR_BLOCK_SIZE) * TAR_BLOCK_SIZE;
 }
@@ -105,14 +113,11 @@ PackedByteArray godot::extract_tar_member(const PackedByteArray &p_tar, const St
 		if (is_end_of_archive(hdr)) {
 			break;
 		}
-		const String name = tar_entry_name(hdr);
-		const int64_t size = parse_tar_octal(hdr + TAR_SIZE_FIELD_OFFSET, TAR_SIZE_FIELD_LEN);
-		const uint8_t type = hdr[TAR_TYPE_FIELD_OFFSET];
-		const bool regular = type == '0' || type == 0;
-		if (regular && (name == p_member || name.ends_with("/" + p_member)) && off + TAR_BLOCK_SIZE + size <= total) {
-			return p_tar.slice(off + TAR_BLOCK_SIZE, off + TAR_BLOCK_SIZE + size);
+		const TarEntryHeader entry = read_tar_entry_header(hdr);
+		if (entry.is_regular && (entry.name == p_member || entry.name.ends_with("/" + p_member)) && off + TAR_BLOCK_SIZE + entry.size <= total) {
+			return p_tar.slice(off + TAR_BLOCK_SIZE, off + TAR_BLOCK_SIZE + entry.size);
 		}
-		off += TAR_BLOCK_SIZE + blocks_for(size);
+		off += TAR_BLOCK_SIZE + blocks_for(entry.size);
 	}
 	return PackedByteArray();
 }

@@ -100,7 +100,7 @@ Dictionary ProcCityGpuServer::run_bundle(const String &p_config, const Array &p_
 	for (int i = 0; i < count; i++) {
 		String path;
 		Ref<Image> image;
-		if (!read_frame(pipe, path, image)) {
+		if (!read_frame_locked(pipe, path, image)) {
 			close_locked();
 			return reply_error("gpu server pipe closed mid-stream");
 		}

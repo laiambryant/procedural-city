@@ -3,9 +3,6 @@
 
 namespace godot {
 
-// Bit order of the composition_modes / sprite_packs flags, matching the
-// goplacementx CLI's canonical names.
-
 inline constexpr int COMPOSITION_MODE_COUNT = 16;
 inline constexpr const char *COMPOSITION_NAMES[COMPOSITION_MODE_COUNT] = {
 	"color-burn", "color-dodge", "darken", "difference", "exclusion",

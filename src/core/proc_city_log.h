@@ -14,8 +14,6 @@ String format_byte_size(int64_t p_bytes);
 String format_pixel_size(const Ref<Image> &p_image);
 String generation_mode_name(int p_mode);
 
-// Reports how long a stage took the moment it finishes, so a slow run names its
-// own bottleneck instead of leaving the whole pipeline as one opaque wait.
 class StageTimer {
 public:
 	explicit StageTimer(const String &p_stage);

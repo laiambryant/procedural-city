@@ -14,16 +14,11 @@
 
 using namespace godot;
 
-// block_footprint shrinks the block inside its cell by p_inset per side, as in
-// the other backends, while the cell size itself stays on the grid — so the
-// inset reads as streets between freestanding buildings.
 static Vector3 block_footprint(const Vector3 &p_cell_size, double p_inset) {
 	const float shrink = 1.0f - 2.0f * CLAMP((float)p_inset, 0.0f, MAX_BLOCK_INSET);
 	return Vector3(p_cell_size.x * shrink, p_cell_size.y, p_cell_size.z * shrink);
 }
 
-// set_block_shape gives the item the box shape a GridMap builds its static
-// bodies from. MeshLibrary takes each shape and its transform as a flat pair.
 static void set_block_shape(const Ref<MeshLibrary> &p_library, const Vector3 &p_block_size) {
 	Ref<BoxShape3D> shape;
 	shape.instantiate();
@@ -52,9 +47,6 @@ Ref<MeshLibrary> godot::build_block_library(const Vector3 &p_cell_size, double p
 	return library;
 }
 
-// centre_cells pins the cell_center_* flags a GridMapPlan's origin is computed
-// against. They are GridMap's own defaults; setting them explicitly keeps the
-// alignment from drifting with the engine's.
 static void centre_cells(GridMap *p_gridmap) {
 	p_gridmap->set_center_x(true);
 	p_gridmap->set_center_y(true);
@@ -83,8 +75,6 @@ void godot::apply_library_material(const Ref<MeshLibrary> &p_library, const Ref<
 	}
 }
 
-// A plan past the warning threshold still builds, but GridMap's octant rebuilds
-// get slow enough to be worth flagging before the editor goes quiet.
 static void warn_on_gridmap_size(const GridMapPlan &p_plan) {
 	const int64_t cell_count = (int64_t)p_plan.cells.size();
 	if (cell_count > GRIDMAP_CELL_WARNING_THRESHOLD) {
@@ -92,9 +82,6 @@ static void warn_on_gridmap_size(const GridMapPlan &p_plan) {
 	}
 }
 
-// _resolve_gridmap_library picks the library the cells will reference: the
-// user's when they supplied one — used untouched, so it is not tracked for
-// retinting — otherwise a freshly built block library.
 bool ProcCityGenerator::_resolve_gridmap_library(const Vector3 &p_cell_size, Ref<MeshLibrary> &r_library, int &r_item) {
 	if (gridmap_mesh_library.is_null()) {
 		r_library = build_block_library(p_cell_size, block_inset, generate_collision);

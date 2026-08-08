@@ -10,24 +10,16 @@
 
 using namespace godot;
 
-// DNS plus TLS handshake against GitHub; past this the network is not coming
-// back within a session the user would wait out.
 static constexpr uint64_t CONNECT_TIMEOUT_MS = 15000;
-// A whole release archive over a slow link. Deliberately generous: the download
-// runs on a worker thread, so a long wait costs nothing but patience.
 static constexpr uint64_t TRANSFER_TIMEOUT_MS = 180000;
-// HTTPClient has no blocking wait, so the connect and body loops sleep between
-// polls. Connecting is slow enough to poll lazily; the body loop runs tighter so
-// throughput is not capped by the sleep.
 static constexpr int CONNECT_POLL_INTERVAL_MS = 10;
 static constexpr int BODY_POLL_INTERVAL_MS = 5;
 
-// HTTP status range that carries a Location header.
 static constexpr int HTTP_REDIRECT_MIN = 300;
 static constexpr int HTTP_REDIRECT_MAX = 400;
 static constexpr int HTTP_OK = 200;
 
-static bool split_url(const String &p_url, String &r_host, String &r_path) {
+static bool split_https_url(const String &p_url, String &r_host, String &r_path) {
 	if (!p_url.begins_with("https://")) {
 		return false;
 	}
@@ -88,8 +80,6 @@ static bool connect_and_request(const Ref<HTTPClient> &p_client, const String &p
 	return true;
 }
 
-// read_body drains the response in chunks, stopping if the transfer stalls past
-// the timeout or grows past the size ceiling.
 static bool read_body(const Ref<HTTPClient> &p_client, const String &p_host, HttpResponse &r_res) {
 	const uint64_t start = Time::get_singleton()->get_ticks_msec();
 	while (p_client->get_status() == HTTPClient::STATUS_BODY) {
@@ -116,7 +106,7 @@ HttpResponse godot::http_get(const String &p_url, const String &p_accept, int p_
 	HttpResponse res;
 	String host;
 	String path;
-	if (!split_url(p_url, host, path)) {
+	if (!split_https_url(p_url, host, path)) {
 		res.error = "Unsupported URL: " + p_url;
 		return res;
 	}

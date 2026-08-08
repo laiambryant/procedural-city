@@ -18,15 +18,12 @@ struct HexUvMap {
 		return Vector2((p_pos.x - layout.ox) / layout.sx, (p_pos.z - layout.oz) / layout.sz);
 	}
 
-	// Cap mapping slid down the wall by the drop below the rim, along the
-	// outward normal, so vertical faces stop smearing a single texture row.
 	Vector2 drape_uv(const Vector3 &p_pos, const Vector3 &p_n_out, float p_rim_y) const {
 		const float drop = p_rim_y - p_pos.y;
 		return planar_uv(p_pos) + Vector2(p_n_out.x / layout.sx, p_n_out.z / layout.sz) * drop;
 	}
 };
 
-// Planar XZ UVs with N = +Y: u grows with +x, v with +z -> T = +X, w = -1.
 void emit_hex_cap(PackedSurface::Writer &p_writer, const HexUvMap &p_uv_map,
 		const Vector3 p_corners[6], float p_tint) {
 	Vector2 uv[6];
@@ -36,10 +33,6 @@ void emit_hex_cap(PackedSurface::Writer &p_writer, const HexUvMap &p_uv_map,
 	p_writer.fan(p_corners, uv, 6, Color(p_tint, p_tint, p_tint), Vector3(0, 1, 0), Vector3(1, 0, 0), -1.0f);
 }
 
-// Walls drop to the floor with no neighbour culling: the gap keeps every cell
-// freestanding, so every wall is visible. UVs drape the cap's planar mapping
-// down the face along the outward normal (seamless at the rim), and the base
-// darkens toward the floor when AO is baked.
 void emit_hex_walls(PackedSurface::Writer &p_writer, const HexUvMap &p_uv_map,
 		const Vector3 p_corners[6], float p_tint_top, float p_tint_bottom) {
 	const Color top_col(p_tint_top, p_tint_top, p_tint_top);
@@ -62,8 +55,6 @@ void emit_hex_walls(PackedSurface::Writer &p_writer, const HexUvMap &p_uv_map,
 	}
 }
 
-// Ground plane at y=0 across the whole layout: closes the view through the
-// inter-cell gaps and, darkened by AO, reads as alley floor.
 void emit_hex_floor(PackedSurface::Writer &p_writer, const HexUvMap &p_uv_map,
 		const HexLayout &p_layout, float p_shade) {
 	const Vector3 pos[4] = {
