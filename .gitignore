@@ -65,6 +65,8 @@ override.cfg
 /demo/addons/procedural_city/gpudisplacementx/
 
 # --- Local tooling ----------------------------------------------------------
+__pycache__/
+*.pyc
 .vscode/
 .claude/
 *.log
@@ -78,3 +80,6 @@ Testing/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# --- tooling ------------------------------------------------------------------
+scripts
