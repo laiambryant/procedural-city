@@ -18,7 +18,7 @@
 </p>
 
 <p align="center">
-  <sub>96×96 blocks from a 2048 px field, generated in ~350 ms per city — recorded from <code>demo/scenes/main.tscn</code>.</sub>
+  <sub>96×96 blocks from a 2048 px field, generated in ~300 ms per city — recorded from <code>demo/scenes/main.tscn</code>.</sub>
 </p>
 
 <table align="center">
@@ -30,7 +30,7 @@
 </table>
 
 <p align="center">
-  <sub>Same pipeline, three seeds — palette, skyline and street layout all fall out of the seed.</sub>
+  <sub>Same pipeline, three seeds — palette and skyline both fall out of the seed.</sub>
 </p>
 
 ---
@@ -76,6 +76,28 @@ scene straight from the command line:
 ```bash
 godot --path demo
 ```
+
+The showcase generates three fixed seeds at startup, then orbits the cached
+cities on a 15 s loop, five seconds each. Blocks are meshed with no inset, so
+neighbouring cells of the same height merge into a single roof instead of
+standing apart as separate boxes, and the generator is sunk by
+`clip_below_height` so the low ground never surfaces through the street plane.
+Rendering the animation is separate from the actual generation time; the
+console reports generation timings.
+
+Rebuild the README media with Godot and FFmpeg installed:
+
+```bash
+python3 scripts/record_showcase.py
+# One full-resolution still for checking the composition:
+python3 scripts/record_showcase.py --preview-time 2.7 --output /tmp/city.png
+```
+
+The recorder hosts the demo in a fixed 1280×720 SubViewport — a window manager
+is free to resize the OS window, which would otherwise change the frame size —
+then writes an optimized 800 px GIF and the three sample PNGs. The timeline is
+a function of frame number, so slow rendering cannot change the camera path or
+skip animation frames.
 
 ## Usage
 
@@ -171,9 +193,12 @@ cannot run from inside a PCK.
 
 The pipeline is built for large grids: meshers write exact-size packed arrays
 with analytic tangents, per-cell work is row-banded across threads (identical
-output for any thread count), and intermediates skip the PNG round-trip. A
-96×96-block city over a 2048 px field takes about 350 ms end to end, of which
-the texture upload dominates.
+output for any thread count), and intermediates skip the PNG round-trip. The
+native CPU compositor runs the complete command stream per worker band,
+avoiding thread creation for every drawing command. Chunk surfaces are filled
+in parallel and committed in order. Actual timings depend on the backend,
+material size and hardware; reproducible measurements and the remaining
+simplification opportunities are in [docs/PERFORMANCE.md](docs/PERFORMANCE.md).
 
 For very large cities, `geometry_chunks` splits the ArrayMesh into tiles the
 renderer can cull independently, `generate_occluders` adds per-tile occluders,
