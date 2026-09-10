@@ -8,6 +8,7 @@
 
 #include <godot_cpp/variant/vector3.hpp>
 
+#include <memory>
 #include <vector>
 
 using namespace godot;
@@ -94,34 +95,40 @@ Ref<ArrayMesh> HeightmapMesher::build_array_mesh(const Ref<Image> &p_image, cons
 			p_height_power, p_inset, p_seed, p_ao, p_variation, p_clip_below_height, heights);
 }
 
-static Ref<ArrayMesh> build_rect_mesh(const std::vector<float> &p_heights, const CellGrid &p_grid,
+static std::unique_ptr<PackedSurface> build_rect_surface(const std::vector<float> &p_heights, const CellGrid &p_grid,
 		const BlockStyle &p_style, const BlockUvMap &p_uv_map, const CellRect &p_rect,
-		float p_inset, bool p_freestanding, float p_clip_below) {
+		float p_inset, bool p_freestanding, float p_clip_below, bool p_parallel = true) {
 	const std::vector<int64_t> offsets = row_quad_offsets(p_heights, p_grid, p_freestanding, p_clip_below, p_rect);
 	const int64_t block_quads = offsets[(size_t)p_rect.rows()];
 	const int64_t total_quads = block_quads + (p_freestanding ? 1 : 0);
 	if (total_quads == 0) {
-		Ref<ArrayMesh> empty_mesh;
-		empty_mesh.instantiate();
-		return empty_mesh;
+		return nullptr;
 	}
 
-	PackedSurface surface(total_quads * QUAD_VERTS, total_quads * QUAD_INDICES, p_style.wants_color());
+	auto surface = std::make_unique<PackedSurface>(total_quads * QUAD_VERTS, total_quads * QUAD_INDICES, p_style.wants_color());
 	parallel_for_rows(p_rect.rows(), [&](int p_begin, int p_end) {
-		PackedSurface::Writer writer = surface.writer_at({ offsets[(size_t)p_begin] * QUAD_VERTS,
+		PackedSurface::Writer writer = surface->writer_at({ offsets[(size_t)p_begin] * QUAD_VERTS,
 				offsets[(size_t)p_begin] * QUAD_INDICES });
 		for (int r = p_begin; r < p_end; r++) {
 			const int j = p_rect.j0 + r;
 			for (int i = p_rect.i0; i < p_rect.i1; i++) {
 				emit_cell(writer, p_uv_map, p_heights, p_grid, p_style, i, j, p_inset, p_freestanding, p_clip_below);
 			}
-		}
-	});
+		} }, p_parallel ? DEFAULT_MIN_ROWS_PER_BAND : p_rect.rows());
 	if (p_freestanding) {
-		PackedSurface::Writer ground_writer = surface.writer_at({ block_quads * QUAD_VERTS, block_quads * QUAD_INDICES });
+		PackedSurface::Writer ground_writer = surface->writer_at({ block_quads * QUAD_VERTS, block_quads * QUAD_INDICES });
 		emit_ground(ground_writer, p_uv_map, p_grid, p_rect, p_clip_below);
 	}
-	return surface.commit();
+	return surface;
+}
+
+static Ref<ArrayMesh> commit_surface(const std::unique_ptr<PackedSurface> &p_surface) {
+	if (p_surface) {
+		return p_surface->commit();
+	}
+	Ref<ArrayMesh> empty;
+	empty.instantiate();
+	return empty;
 }
 
 Ref<ArrayMesh> HeightmapMesher::build_array_mesh_with_heights(const Ref<Image> &p_image, const Vector2 &p_size,
@@ -137,7 +144,7 @@ Ref<ArrayMesh> HeightmapMesher::build_array_mesh_with_heights(const Ref<Image> &
 	const float clip_below = MAX(0.0f, (float)p_clip_below_height);
 	const BlockStyle style = make_block_style(p_ao, p_variation, p_height_scale, p_seed);
 	const BlockUvMap uv_map(p_size, grid);
-	return build_rect_mesh(r_heights, grid, style, uv_map, CellRect::whole(grid), inset, inset > 0.0f, clip_below);
+	return commit_surface(build_rect_surface(r_heights, grid, style, uv_map, CellRect::whole(grid), inset, inset > 0.0f, clip_below));
 }
 
 static CellRect chunk_rect(const CellGrid &p_grid, int p_chunks, int p_cx, int p_cz) {
@@ -168,14 +175,38 @@ std::vector<Ref<ArrayMesh>> HeightmapMesher::build_array_mesh_chunks(const Ref<I
 	const BlockStyle style = make_block_style(p_ao, p_variation, p_height_scale, p_seed);
 	const BlockUvMap uv_map(p_size, grid);
 
-	meshes.reserve((size_t)chunks * (size_t)chunks);
+	std::vector<CellRect> rects;
+	rects.reserve((size_t)chunks * (size_t)chunks);
 	for (int cz = 0; cz < chunks; cz++) {
 		for (int cx = 0; cx < chunks; cx++) {
 			const CellRect rect = chunk_rect(grid, chunks, cx, cz);
-			if (rect.is_empty()) {
-				continue;
+			if (!rect.is_empty()) {
+				rects.push_back(rect);
 			}
-			meshes.push_back(build_rect_mesh(r_heights, grid, style, uv_map, rect, inset, freestanding, clip_below));
+		}
+	}
+	constexpr size_t MIN_PARALLEL_CHUNKS = 8;
+	meshes.reserve(rects.size());
+	if (rects.size() < MIN_PARALLEL_CHUNKS) {
+		for (const CellRect &rect : rects) {
+			meshes.push_back(commit_surface(build_rect_surface(r_heights, grid, style, uv_map, rect,
+					inset, freestanding, clip_below)));
+		}
+		return meshes;
+	}
+	const size_t batch_size = std::max(1u, std::thread::hardware_concurrency());
+	for (size_t first = 0; first < rects.size(); first += batch_size) {
+		const size_t count = std::min(batch_size, rects.size() - first);
+		std::vector<std::unique_ptr<PackedSurface>> surfaces(count);
+		parallel_for_rows((int)count, [&](int p_begin, int p_end) {
+			for (int i = p_begin; i < p_end; i++) {
+				surfaces[(size_t)i] = build_rect_surface(r_heights, grid, style, uv_map, rects[first + (size_t)i],
+						inset, freestanding, clip_below, false);
+			}
+		},
+				HEAVY_MIN_ROWS_PER_BAND);
+		for (const auto &surface : surfaces) {
+			meshes.push_back(commit_surface(surface));
 		}
 	}
 	return meshes;

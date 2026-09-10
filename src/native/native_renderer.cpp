@@ -1,5 +1,6 @@
 #include "native/native_renderer.h"
 
+#include "native/native_cpu.h"
 #include "native/native_gpu.h"
 #include "native/native_params.h"
 
@@ -86,7 +87,7 @@ static cppdx::Canvas render_field(const BundleInputs &p_inputs, int64_t p_seed, 
 		canvas = cppdx::Canvas(width, height);
 	}
 	r_used_gpu = false;
-	cppdx::composite_cpu(canvas, commands, p_inputs.atlas.view(), 0);
+	composite_native_cpu(canvas, commands, p_inputs.atlas.view());
 	return canvas;
 }
 
@@ -125,8 +126,12 @@ Dictionary godot::run_native_bundle(const Array &p_emits, const Ref<Goplacementx
 			if (emit.seed != seed) {
 				continue;
 			}
-			const cppdx::Canvas map = cppdx::derive_map(field, emit.mode, inputs.invert, inputs.gradient);
-			images[emit.path] = canvas_to_image(map);
+			if (emit.mode == cppdx::OutputMode::GRAYSCALE && !inputs.invert) {
+				images[emit.path] = canvas_to_image(field);
+			} else {
+				const cppdx::Canvas map = cppdx::derive_map(field, emit.mode, inputs.invert, inputs.gradient);
+				images[emit.path] = canvas_to_image(map);
+			}
 		}
 	}
 

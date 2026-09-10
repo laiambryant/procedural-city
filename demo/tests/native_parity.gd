@@ -23,6 +23,7 @@ func _run() -> void:
 	if gpu["used"] == ProcCityGenerator.GEN_GPU_NATIVE:
 		_check(cpu["height"] == gpu["height"], "GPU and CPU height fields are byte-identical")
 		_check(cpu["albedo"] == gpu["albedo"], "GPU and CPU albedo maps are byte-identical")
+		_check(cpu["normal"] == gpu["normal"], "GPU and CPU normal maps are byte-identical")
 	else:
 		print("  skip: no RenderingDevice, GPU mode fell back to the CPU backend")
 
@@ -85,19 +86,26 @@ func _generate(mode: int, title: String) -> Dictionary:
 	var result := {
 		"used": gen.get_last_generation_mode_used(),
 		"height": height,
-		"albedo": _albedo_bytes(generated),
+		"albedo": _texture_bytes(generated, BaseMaterial3D.TEXTURE_ALBEDO),
+		"normal": _texture_bytes(generated, BaseMaterial3D.TEXTURE_NORMAL),
 	}
 	gen.queue_free()
 	await process_frame
 	return result
 
 
-func _albedo_bytes(generated: Node) -> PackedByteArray:
+func _texture_bytes(generated: Node, slot: int) -> PackedByteArray:
 	if generated == null:
 		return PackedByteArray()
+	if generated is MeshInstance3D and generated.material_override is BaseMaterial3D:
+		var texture: Texture2D = (generated.material_override as BaseMaterial3D).get_texture(slot)
+		if texture != null:
+			var bytes := texture.get_image().get_data()
+			_check(not bytes.is_empty(), "material texture %d contains pixels" % slot)
+			return bytes
 	for child in generated.get_children():
-		if child is MeshInstance3D and child.material_override is BaseMaterial3D:
-			var texture: Texture2D = (child.material_override as BaseMaterial3D).albedo_texture
-			if texture != null:
-				return texture.get_image().get_data()
+		var bytes := _texture_bytes(child, slot)
+		if not bytes.is_empty():
+			return bytes
+	_fail("generated mesh is missing material texture %d" % slot)
 	return PackedByteArray()

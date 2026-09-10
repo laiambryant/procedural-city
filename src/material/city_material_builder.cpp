@@ -1,5 +1,6 @@
 #include "material/city_material_builder.h"
 
+#include "meshing/height_sampling.h"
 #include "meshing/parallel_rows.h"
 
 #include <godot_cpp/classes/image_texture.hpp>
@@ -106,45 +107,15 @@ Ref<Image> godot::compose_rgb_albedo(const Ref<Image> &p_r, const Ref<Image> &p_
 		return Ref<Image>();
 	}
 
-	struct RedChannel {
-		Ref<Image> image;
-		PackedByteArray data;
-		int stride = 0;
-	};
-	auto channel = [](const Ref<Image> &p_source) {
-		RedChannel out;
-		out.image = p_source;
-		switch (out.image->get_format()) {
-			case Image::FORMAT_L8:
-			case Image::FORMAT_R8:
-				out.stride = 1;
-				break;
-			case Image::FORMAT_LA8:
-			case Image::FORMAT_RG8:
-				out.stride = 2;
-				break;
-			case Image::FORMAT_RGB8:
-				out.stride = 3;
-				break;
-			case Image::FORMAT_RGBA8:
-				out.stride = 4;
-				break;
-			default:
-				out.image = p_source->duplicate();
-				out.image->convert(Image::FORMAT_RGBA8);
-				out.stride = 4;
-				break;
-		}
-		out.data = out.image->get_data();
-		return out;
-	};
-
-	const RedChannel rd = channel(p_r);
-	const RedChannel gd = channel(p_g);
-	const RedChannel bd = channel(p_b);
-	const uint8_t *rp = rd.data.ptr();
-	const uint8_t *gp = gd.data.ptr();
-	const uint8_t *bp = bd.data.ptr();
+	const HeightImageView rd = decode_height_image(p_r);
+	const HeightImageView gd = decode_height_image(p_g);
+	const HeightImageView bd = decode_height_image(p_b);
+	if (!rd.is_valid() || !gd.is_valid() || !bd.is_valid()) {
+		return Ref<Image>();
+	}
+	const uint8_t *rp = rd.pixels;
+	const uint8_t *gp = gd.pixels;
+	const uint8_t *bp = bd.pixels;
 
 	const int64_t n = (int64_t)w * (int64_t)h;
 	PackedByteArray out;

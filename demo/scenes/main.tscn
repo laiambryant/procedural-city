@@ -51,7 +51,8 @@ albedo_color = Color(0.055, 0.05, 0.065, 1)
 roughness = 0.92
 
 [sub_resource type="GoplacementxParams" id="GoplacementxParams_city"]
-palette_preset = 5
+randomize_seed = false
+palette_preset = 0
 iterations = 420
 background_brightness = 18
 rect_alpha = Vector2i(40, 90)
@@ -88,25 +89,29 @@ mesh = SubResource("PlaneMesh_ground")
 surface_material_override/0 = SubResource("StandardMaterial3D_ground")
 
 [node name="ProcCityGenerator" type="ProcCityGenerator" parent="." unique_id=143536427]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -3, 0)
 params = SubResource("GoplacementxParams_city")
 mesh_size = Vector2(140, 140)
 grid_vertices = Vector2i(97, 97)
 height_scale = 26.0
 height_power = 1.55
-block_inset = 0.11
+block_inset = 0.0
+clip_below_height = 3.0
 max_cells = 16384
 persist_in_scene = false
 geometry_chunks = 4
-ao_strength = 0.8
-color_variation = 0.16
-roughness = 0.62
-metallic = 0.28
+sample_filter = 1
+ao_strength = 0.6
+color_variation = 0.15
+roughness = 0.7
+metallic = 0.25
+normal_strength = 1.2
 texture_filter = 2
 
 [node name="CameraRig" type="Node3D" parent="." unique_id=839193149]
 
 [node name="Camera3D" type="Camera3D" parent="CameraRig" unique_id=566696977]
-transform = Transform3D(1, 0, 0, 0, 0.9018, 0.4324, 0, -0.4324, 0.9018, 0, 86, 166)
+transform = Transform3D(1, 0, 0, 0, 0.9018, 0.4324, 0, -0.4324, 0.9018, 0, 96, 190)
 fov = 48.0
 near = 0.5
 far = 1200.0

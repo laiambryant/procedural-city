@@ -54,7 +54,9 @@ outside GPU Legacy, the Hive group outside HexHive, and so on).
 
 `native_renderer.cpp` runs the cppdisplacementx core inside the extension,
 dispatching its compute shader through a local `RenderingDevice`
-(`native_gpu.cpp`) or compositing on worker threads. `native_params.cpp`
+(`native_gpu.cpp`) or compositing on worker threads. The CPU adapter in
+`native_cpu.h` partitions the canvas once and runs each band's command stream
+through the unchanged core compositor. `native_params.cpp`
 bridges the `GoplacementxParams` resource and the sprite atlas into the core's
 own structs. No process, no config file, no temporary files: the maps come back
 as `Image`s.
@@ -86,7 +88,10 @@ Shared infrastructure:
   disjoint vertex/index ranges so threads fill bands concurrently with
   deterministic output.
 - `parallel_rows` — row-banded fork/join helper; output is byte-identical for
-  any thread count.
+  any thread count. Large chunk builds fill packed surfaces in bounded parallel
+  batches, then commit their ArrayMesh resources sequentially. Small chunk
+  counts retain row parallelism. The reason for sequential resource commits is
+  documented in [HEADLESS_RENDERER.md](HEADLESS_RENDERER.md).
 - `deterministic_noise` — engine-independent seeded hash/value noise.
 - `baked_style.h` — the named tuning constants (AO spans, tint span) and hash
   salts for the baked vertex-colour look. The salts are frozen: changing one
