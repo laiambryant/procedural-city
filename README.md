@@ -85,6 +85,11 @@ standing apart as separate boxes, and the generator is sunk by
 Rendering the animation is separate from the actual generation time; the
 console reports generation timings.
 
+The Forward+ showcase includes a dusk WorldEnvironment, animated volumetric
+clouds adapted from The Beehive's Level 0, a paved terrace and distant hills.
+Its resources are self-contained in `demo/environment/`; see the
+[environment notes](demo/environment/README.md) for provenance and tuning.
+
 Rebuild the README media with Godot and FFmpeg installed:
 
 ```bash
@@ -261,3 +266,9 @@ reimplementations of that lineage.
 ## License
 
 [GPL-3.0](LICENSE).
+
+## Publishing
+
+See the [Asset Store release guide](docs/RELEASING.md) for packaging, the current
+submission steps, suggested listing copy and the remaining platform/license
+metadata checks. The source archive alone does not contain installable binaries.
