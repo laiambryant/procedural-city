@@ -27,6 +27,7 @@ var palettes: Array[PackedColorArray] = [
 @onready var generator: ProcCityGenerator = $ProcCityGenerator
 @onready var camera_rig: Node3D = $CameraRig
 @onready var readout: Label = $Hud/Readout
+@onready var cloud_sky: ShaderMaterial = $WorldEnvironment.environment.sky.sky_material
 
 var _cities: Array[Node3D] = []
 var _tiles: Array[Array] = []
@@ -110,6 +111,7 @@ func _process(delta: float) -> void:
 ## risen, and where the camera is. No tweens and no accumulated state, so a
 ## captured frame and a played frame at the same time are identical.
 func _pose(time: float) -> void:
+	cloud_sky.set_shader_parameter("showcase_time", time)
 	if _cities.is_empty():
 		return
 	var index := int(time / CYCLE_SECONDS) % _cities.size()
@@ -133,6 +135,10 @@ func _capture() -> void:
 		if _preview_time < 0.0:
 			time = fmod(2.0 + float(frame) / _capture_fps, CYCLE_SECONDS * _cities.size())
 		_pose(time)
+		# Settle sky radiance and screen-space effects before the first still.
+		if frame == 0:
+			for _warmup in 8:
+				await RenderingServer.frame_post_draw
 		await RenderingServer.frame_post_draw
 		var path := _capture_dir.path_join("frame_%04d.png" % frame)
 		if get_viewport().get_texture().get_image().save_png(path) != OK:
