@@ -1,8 +1,8 @@
 extends Node3D
 
-## Runtime showcase: builds three cities up front, each with its own seed and
-## palette, then plays them back on a fixed 15 s timeline while the camera
-## orbits and the finished blocks rise out of the street. The timeline is a
+## Runtime showcase: builds four cities up front, each with its own seed,
+## palette and sky, then plays them back on a fixed 20 s timeline while the
+## camera orbits and the finished blocks rise out of the water. The timeline is a
 ## pure function of one clock, so `scripts/record_showcase.py` can pose it
 ## frame by frame and get the same GIF every run.
 
@@ -10,24 +10,60 @@ const ORBIT_PERIOD := 34.0
 const RISE_SECONDS := 1.15
 const RISE_STAGGER := 0.055
 const CYCLE_SECONDS := 5.0
-const SEEDS := [424242, 73129, 917203]
+const SEEDS := [424242, 73129, 917203, 581337]
 
-var palettes: Array[PackedColorArray] = [
-	PackedColorArray([
-		Color("0a0d1c"), Color("2a2350"), Color("b5455f"), Color("ffc46b"), Color("fff2d0"),
-	]),
-	PackedColorArray([
-		Color("07131a"), Color("0f4a52"), Color("2fb8a0"), Color("d6f5a3"), Color("fbffe3"),
-	]),
-	PackedColorArray([
-		Color("120a18"), Color("46145c"), Color("d1345b"), Color("ff8c42"), Color("ffe9c9"),
-	]),
+## One look per city: the albedo ramp the generator maps heights through, plus
+## the sky, fog, light and water-grid colours that frame it. The first ramp is
+## godisplacementx's default gradient.
+var moods: Array[Dictionary] = [
+	{
+		name = "DisplacementX",
+		palette = PackedColorArray([Color("00ffff"), Color("9500ff"), Color("ffe500")]),
+		zenith = Color("080722"), horizon = Color("d93f86"), fog = Color("8a2c78"),
+		cloud_lit = Color("e089c4"), cloud_mid = Color("6a2c80"), cloud_deep = Color("170d33"),
+		sun = Color("ff9f8a"), fill = Color("5ad6ff"), grid = Color("00ffff"), stars = 2.5,
+		clouds = 0.2,
+	},
+	{
+		name = "Vaporwave",
+		palette = PackedColorArray([
+			Color("2d0b59"), Color("b967ff"), Color("ff71ce"), Color("01cdfe"), Color("fffb96"),
+		]),
+		zenith = Color("2b1f78"), horizon = Color("ffa7c4"), fog = Color("e48bb8"),
+		cloud_lit = Color("fff0f6"), cloud_mid = Color("ffb3d4"), cloud_deep = Color("7a5ab8"),
+		sun = Color("ffd2c0"), fill = Color("8fb8ff"), grid = Color("ff71ce"), stars = 0.4,
+		clouds = 0.24,
+	},
+	{
+		name = "Aurora",
+		palette = PackedColorArray([
+			Color("0b2545"), Color("13708a"), Color("05bfdb"), Color("00ffca"), Color("eafff7"),
+		]),
+		zenith = Color("020916"), horizon = Color("1f7d86"), fog = Color("15505e"),
+		cloud_lit = Color("86d6cc"), cloud_mid = Color("2a6f78"), cloud_deep = Color("071a28"),
+		sun = Color("b8f0ff"), fill = Color("39ffc0"), grid = Color("00ffca"), stars = 3.0,
+		clouds = 0.18,
+	},
+	{
+		name = "Solar Flare",
+		palette = PackedColorArray([
+			Color("240b36"), Color("7a1d4a"), Color("e8412c"), Color("ff9a1f"), Color("ffe9a8"),
+		]),
+		zenith = Color("23265e"), horizon = Color("ff8c42"), fog = Color("d86a3a"),
+		cloud_lit = Color("fff0d6"), cloud_mid = Color("ffa45c"), cloud_deep = Color("6a3050"),
+		sun = Color("ffb06a"), fill = Color("7a8cff"), grid = Color("ff6a00"), stars = 0.0,
+		clouds = 0.24,
+	},
 ]
 
 @onready var generator: ProcCityGenerator = $ProcCityGenerator
 @onready var camera_rig: Node3D = $CameraRig
 @onready var readout: Label = $Hud/Readout
-@onready var cloud_sky: ShaderMaterial = $WorldEnvironment.environment.sky.sky_material
+@onready var environment: Environment = $WorldEnvironment.environment
+@onready var cloud_sky: ShaderMaterial = environment.sky.sky_material
+@onready var water: ShaderMaterial = $Water.get_surface_override_material(0)
+@onready var sun: DirectionalLight3D = $DirectionalLight3D
+@onready var fill: DirectionalLight3D = $FillLight
 
 var _cities: Array[Node3D] = []
 var _tiles: Array[Array] = []
@@ -79,7 +115,7 @@ func _fit_readout_to_viewport() -> void:
 ## overwrite it. Cities are hidden until the timeline calls for them.
 func _build_city(index: int) -> void:
 	readout.text = "Procedural City · building city %d of %d…" % [index + 1, SEEDS.size()]
-	generator.params.gradient_colors = palettes[index]
+	generator.params.gradient_colors = moods[index].palette
 	generator.params.seed = SEEDS[index]
 	var started_usec := Time.get_ticks_usec()
 	generator.generate_all()
@@ -95,8 +131,8 @@ func _build_city(index: int) -> void:
 	city.visible = false
 	_cities.append(city)
 	_tiles.append(_city_tiles(city))
-	_captions.append("Procedural City · city %d · %d×%d cells · %d px map · %.0f ms" % [
-		index + 1,
+	_captions.append("Procedural City · %s · %d×%d cells · %d px map · %.0f ms" % [
+		moods[index].name,
 		generator.grid_vertices.x - 1,
 		generator.grid_vertices.y - 1,
 		generator.params.resolution,
@@ -112,6 +148,7 @@ func _process(delta: float) -> void:
 ## captured frame and a played frame at the same time are identical.
 func _pose(time: float) -> void:
 	cloud_sky.set_shader_parameter("showcase_time", time)
+	water.set_shader_parameter("showcase_time", time)
 	if _cities.is_empty():
 		return
 	var index := int(time / CYCLE_SECONDS) % _cities.size()
@@ -122,11 +159,30 @@ func _pose(time: float) -> void:
 		_active = index
 		_cities[index].visible = true
 		readout.text = _captions[index]
+		_apply_mood(moods[index])
 	var tiles: Array = _tiles[index]
 	for i in tiles.size():
 		var risen := clampf((local - i * RISE_STAGGER) / RISE_SECONDS, 0.0, 1.0)
 		tiles[i].scale.y = maxf(ease(risen, 0.35), 0.001)
 	camera_rig.rotation.y = TAU / ORBIT_PERIOD * time
+
+func _apply_mood(mood: Dictionary) -> void:
+	cloud_sky.set_shader_parameter("sky_zenith", mood.zenith)
+	cloud_sky.set_shader_parameter("sky_horizon", mood.horizon)
+	cloud_sky.set_shader_parameter("ground_horizon", mood.horizon)
+	cloud_sky.set_shader_parameter("ground_bottom", mood.zenith)
+	cloud_sky.set_shader_parameter("floss_lit", mood.cloud_lit)
+	cloud_sky.set_shader_parameter("floss_mid", mood.cloud_mid)
+	cloud_sky.set_shader_parameter("floss_deep", mood.cloud_deep)
+	cloud_sky.set_shader_parameter("ground_bounce", mood.cloud_mid)
+	cloud_sky.set_shader_parameter("cubemap_cloud_tint", mood.cloud_mid)
+	cloud_sky.set_shader_parameter("sun_disc_color", mood.sun)
+	cloud_sky.set_shader_parameter("star_energy", mood.stars)
+	cloud_sky.set_shader_parameter("coverage", mood.clouds)
+	environment.fog_light_color = mood.horizon.lerp(mood.fog, 0.5)
+	sun.light_color = mood.sun
+	fill.light_color = mood.fill
+	water.set_shader_parameter("grid_color", mood.grid)
 
 func _capture() -> void:
 	var total := 1 if _preview_time >= 0.0 else int(CYCLE_SECONDS * _cities.size() * _capture_fps)

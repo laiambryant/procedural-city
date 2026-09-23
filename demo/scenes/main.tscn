@@ -2,8 +2,7 @@
 
 [ext_resource type="Script" uid="uid://ceslln6kyym3e" path="res://scenes/demo.gd" id="1_demo"]
 [ext_resource type="ShaderMaterial" path="res://environment/cloud_sky.tres" id="2_sky"]
-[ext_resource type="Shader" path="res://environment/landscape.gdshader" id="3_landscape"]
-[ext_resource type="Shader" path="res://environment/plaza.gdshader" id="4_plaza"]
+[ext_resource type="Shader" path="res://environment/mirror_floor.gdshader" id="3_floor"]
 
 [sub_resource type="Sky" id="Sky_main"]
 radiance_size = 3
@@ -18,6 +17,11 @@ ambient_light_energy = 0.8
 reflected_light_source = 2
 tonemap_mode = 3
 tonemap_white = 6.0
+ssr_enabled = true
+ssr_max_steps = 96
+ssr_fade_in = 0.1
+ssr_fade_out = 1.6
+ssr_depth_tolerance = 0.4
 ssao_enabled = true
 ssao_radius = 1.0
 ssao_intensity = 1.5
@@ -30,36 +34,24 @@ glow_intensity = 0.35
 glow_bloom = 0.0
 glow_hdr_threshold = 1.4
 fog_enabled = true
+fog_mode = 1
 fog_light_color = Color(0.76, 0.7, 0.72, 1)
-fog_light_energy = 0.8
-fog_sun_scatter = 0.08
-fog_density = 0.0004
-fog_aerial_perspective = 0.35
+fog_light_energy = 1.0
+fog_sun_scatter = 0.12
+fog_aerial_perspective = 0.5
 fog_sky_affect = 0.0
+fog_depth_curve = 1.6
+fog_depth_begin = 260.0
+fog_depth_end = 3000.0
 adjustment_enabled = true
 adjustment_contrast = 1.08
 adjustment_saturation = 1.06
 
-[sub_resource type="PlaneMesh" id="PlaneMesh_ground"]
+[sub_resource type="PlaneMesh" id="PlaneMesh_water"]
 size = Vector2(8000, 8000)
-subdivide_width = 192
-subdivide_depth = 192
 
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_ground"]
-shader = ExtResource("3_landscape")
-
-[sub_resource type="ShaderMaterial" id="ShaderMaterial_plaza"]
-shader = ExtResource("4_plaza")
-
-[sub_resource type="BoxMesh" id="BoxMesh_plaza"]
-size = Vector3(156, 0.6, 156)
-
-[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_steps"]
-albedo_color = Color(0.34, 0.36, 0.39, 1)
-roughness = 0.7
-
-[sub_resource type="BoxMesh" id="BoxMesh_steps"]
-size = Vector3(160, 0.3, 160)
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_water"]
+shader = ExtResource("3_floor")
 
 [sub_resource type="GoplacementxParams" id="GoplacementxParams_city"]
 randomize_seed = false
@@ -81,36 +73,25 @@ environment = SubResource("Environment_main")
 
 [node name="DirectionalLight3D" type="DirectionalLight3D" parent="." unique_id=252192014]
 position = Vector3(0, 80, 0)
-rotation_degrees = Vector3(-24, -35, 0)
+rotation_degrees = Vector3(-14, -35, 0)
 light_color = Color(1, 0.84, 0.7, 1)
 light_energy = 1.9
 light_angular_distance = 1.1
 shadow_enabled = true
 shadow_bias = 0.06
 shadow_blur = 1.1
-directional_shadow_max_distance = 420.0
+directional_shadow_max_distance = 520.0
 
 [node name="FillLight" type="DirectionalLight3D" parent="." unique_id=1492460756]
 transform = Transform3D(0.76601994, 0.27163184, -0.5826059, 0, 0.9063327, 0.42256492, 0.64281684, -0.32369316, 0.6942689, 0, 80, 0)
 light_color = Color(0.6, 0.72, 1, 1)
 light_energy = 0.5
+light_specular = 0.0
 sky_mode = 1
 
-[node name="Ground" type="MeshInstance3D" parent="." unique_id=571990065]
-position = Vector3(0, -0.95, 0)
-mesh = SubResource("PlaneMesh_ground")
-surface_material_override/0 = SubResource("ShaderMaterial_ground")
-custom_aabb = AABB(-4000, -1, -4000, 8000, 365, 8000)
-
-[node name="TerraceStep" type="MeshInstance3D" parent="."]
-position = Vector3(0, -0.8, 0)
-mesh = SubResource("BoxMesh_steps")
-surface_material_override/0 = SubResource("StandardMaterial3D_steps")
-
-[node name="CityTerrace" type="MeshInstance3D" parent="."]
-position = Vector3(0, -0.35, 0)
-mesh = SubResource("BoxMesh_plaza")
-surface_material_override/0 = SubResource("ShaderMaterial_plaza")
+[node name="Water" type="MeshInstance3D" parent="." unique_id=571990065]
+mesh = SubResource("PlaneMesh_water")
+surface_material_override/0 = SubResource("ShaderMaterial_water")
 
 [node name="ProcCityGenerator" type="ProcCityGenerator" parent="." unique_id=143536427]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -3, 0)
@@ -135,8 +116,8 @@ texture_filter = 2
 [node name="CameraRig" type="Node3D" parent="." unique_id=839193149]
 
 [node name="Camera3D" type="Camera3D" parent="CameraRig" unique_id=566696977]
-position = Vector3(0, 60, 205)
-rotation_degrees = Vector3(-11, 0, 0)
+position = Vector3(0, 46, 200)
+rotation_degrees = Vector3(-9.5, 0, 0)
 fov = 48.0
 near = 0.5
 far = 6000.0

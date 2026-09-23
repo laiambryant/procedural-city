@@ -1,9 +1,16 @@
 # Showcase environment
 
-The demo's WorldEnvironment combines a blue dusk sky, peach cloud lighting,
-sky ambient/reflections, distance haze, restrained glow and ambient occlusion.
-A paved terrace and distant low hills anchor the city to a visible landscape.
+The demo's WorldEnvironment combines a volumetric-cloud sky, sky
+ambient/reflections, screen-space reflections, depth fog toward the horizon,
+restrained glow and ambient occlusion. The city stands in an 8 km water plane
+(`mirror_floor.gdshader`): a near-mirror with slow, distance-calmed ripples
+and an antialiased neon grid that fades out around the city.
 All fixed geometry and lighting are authored in `../scenes/main.tscn`.
+
+Each city has a mood in `../scenes/demo.gd`: besides the albedo ramp, it sets
+the sky zenith and horizon, cloud tint and coverage, star brightness, fog,
+key and fill light colours, and the grid colour. The first ramp is
+godisplacementx's default gradient (`#00ffff`, `#9500ff`, `#ffe500`).
 
 ## Clouds and provenance
 
@@ -17,7 +24,7 @@ The upstream license notice is preserved in [CLOUD_LICENSE.md](CLOUD_LICENSE.md)
 The atmosphere shader mentioned in that upstream notice is not used here.
 
 The noise volumes are generated with Godot FastNoiseLite, not downloaded art.
-The landscape and paving shaders are procedural. There is no runtime reference
+The water shader and the star field are procedural. There is no runtime reference
 to another project, global shader setting or external texture download.
 
 The cloud march runs at half resolution with 64 view steps and four cone-light
@@ -42,7 +49,7 @@ godot --path demo --script res://scenes/capture.gd -- \
   --capture-dir=/tmp/procedural-city-preview --preview-time=2.7
 ```
 
-Use 7.7 and 12.7 for the other two cities. The image is always 1280×720,
+Use 7.7, 12.7 and 17.7 for the other three cities. The image is always 1280×720,
 regardless of the window manager's window size.
 
 ## Rebuilding noise (optional)

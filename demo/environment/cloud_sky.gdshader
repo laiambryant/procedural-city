@@ -15,6 +15,7 @@ uniform vec3 sky_horizon : source_color = vec3(0.96, 0.72, 0.68);
 uniform vec3 ground_horizon : source_color = vec3(0.94, 0.72, 0.66);
 uniform vec3 ground_bottom : source_color = vec3(0.50, 0.44, 0.50);
 uniform float sky_curve : hint_range(0.01, 1.0) = 0.12;
+uniform float star_energy : hint_range(0.0, 8.0) = 0.0;
 
 group_uniforms Sun;
 uniform float sun_size : hint_range(0.0, 0.2) = 0.028;
@@ -108,6 +109,18 @@ vec3 sky_gradient(vec3 dir) {
 		return mix(sky_horizon, sky_zenith, pow(dir.y, sky_curve));
 	}
 	return mix(ground_horizon, ground_bottom, pow(-dir.y, 0.5));
+}
+
+// Sparse point stars on a direction lattice, fading in above the horizon glow.
+float stars(vec3 dir) {
+	vec3 cell = floor(dir * 180.0);
+	float pick = hash13(cell);
+	if (pick < 0.985) {
+		return 0.0;
+	}
+	vec3 centre = (cell + 0.5 + (vec3(hash13(cell + 7.1), hash13(cell + 3.7), hash13(cell + 1.3)) - 0.5) * 0.6) / 180.0;
+	float d = length(dir - centre) * 180.0;
+	return (1.0 - smoothstep(0.08, 0.3, d)) * (pick - 0.985) / 0.015 * smoothstep(0.08, 0.45, dir.y);
 }
 
 float height_fraction(float y) {
@@ -229,6 +242,9 @@ vec4 march_clouds(vec3 ro, vec3 rd, float t_start, float t_len, vec3 ldir) {
 
 void sky() {
 	vec3 background = sky_gradient(EYEDIR);
+	if (!AT_CUBEMAP_PASS && star_energy > 0.0 && EYEDIR.y > 0.0) {
+		background += vec3(0.85, 0.9, 1.0) * stars(EYEDIR) * star_energy;
+	}
 
 	if (LIGHT0_ENABLED) {
 		float d = distance(EYEDIR, LIGHT0_DIRECTION);
