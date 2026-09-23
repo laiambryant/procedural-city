@@ -120,6 +120,9 @@
 		<member name="build_mode" type="int" setter="set_build_mode" getter="get_build_mode">
 			Which geometry backend builds the city. ArrayMesh is one continuous mesh and the only one that drapes the material as a single image; MultiMesh is GPU-instanced; CSG welds real boolean boxes and is expensive; HexHive lays a hexagonal lattice; GridMap emits an editable [GridMap] node.
 		</member>
+		<member name="carve_rects" type="Rect2[]" setter="set_carve_rects" getter="get_carve_rects">
+			Mesh-local XZ rectangles (origin at the mesh centre, [code]Rect2.position.y[/code] is Z) flattened to zero in the displacement field when it is generated. Geometry, collision, [method get_cell_heights] and the clear-point queries all read the carved field, so a game can open streets, plazas or arenas from its own layout plan. Applied when the field is produced; changing it requires generating the displacement again.
+		</member>
 		<member name="clip_below_height" type="float" setter="set_clip_below_height" getter="get_clip_below_height">
 			ArrayMesh only. Cells at or below this mesh-local height are omitted, along with the wall portions hidden beneath it. Carves open ground out of the field; 0 builds everything.
 		</member>
