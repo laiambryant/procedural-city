@@ -6,6 +6,7 @@
 #include "cli/rpc_client.h"
 #include "core/proc_city_job.h"
 #include "core/proc_city_log.h"
+#include "meshing/height_sampling.h"
 #include "native/native_renderer.h"
 
 #include <godot_cpp/classes/array_mesh.hpp>
@@ -294,6 +295,12 @@ void ProcCityGenerator::_thread_body(Dictionary p_job) {
 	}
 	if (is_native_generation_mode(mode)) {
 		forget_planned_paths(result);
+	}
+	if (result.has("height_image")) {
+		// Carved once where the field is produced, so every consumer of the
+		// stored image (meshing, collision, cell heights) agrees on it.
+		const TypedArray<Rect2> carves = p_job.get("carve_rects", TypedArray<Rect2>());
+		carve_height_image(result["height_image"], p_job["mesh_size"], carves);
 	}
 
 	if (stages & STAGE_GEOMETRY) {

@@ -45,6 +45,8 @@ void ProcCityGenerator::_bind_methods() {
 	ClassDB::bind_method(D_METHOD("set_hive_gap", "value"), &ProcCityGenerator::set_hive_gap);
 	ClassDB::bind_method(D_METHOD("get_hive_gap"), &ProcCityGenerator::get_hive_gap);
 	ClassDB::bind_method(D_METHOD("set_hive_flat_rect", "value"), &ProcCityGenerator::set_hive_flat_rect);
+	ClassDB::bind_method(D_METHOD("set_carve_rects", "rects"), &ProcCityGenerator::set_carve_rects);
+	ClassDB::bind_method(D_METHOD("get_carve_rects"), &ProcCityGenerator::get_carve_rects);
 	ClassDB::bind_method(D_METHOD("get_hive_flat_rect"), &ProcCityGenerator::get_hive_flat_rect);
 	ClassDB::bind_method(D_METHOD("set_hive_rim_boost", "value"), &ProcCityGenerator::set_hive_rim_boost);
 	ClassDB::bind_method(D_METHOD("get_hive_rim_boost"), &ProcCityGenerator::get_hive_rim_boost);

@@ -4,6 +4,8 @@
 #include <godot_cpp/classes/image.hpp>
 #include <godot_cpp/core/math.hpp>
 #include <godot_cpp/variant/packed_byte_array.hpp>
+#include <godot_cpp/variant/rect2.hpp>
+#include <godot_cpp/variant/typed_array.hpp>
 #include <godot_cpp/variant/vector2.hpp>
 #include <godot_cpp/variant/vector2i.hpp>
 
@@ -58,6 +60,11 @@ float sample_uv(const HeightImageView &p_view, float p_u, float p_v, int p_filte
 bool resolve_cell_heights(const Ref<Image> &p_image, const CellGrid &p_grid,
 		double p_height_scale, double p_base_height, int p_filter, std::vector<float> &r_heights,
 		double p_height_power = 1.0);
+
+// Flattens every mesh-local XZ rect (origin at the mesh centre, like the cell
+// grid) to zero in the field itself, so geometry, collision and cell heights
+// all see the same open ground. Returns the number of rects applied.
+int carve_height_image(const Ref<Image> &p_image, const Vector2 &p_mesh_size, const TypedArray<Rect2> &p_rects);
 
 } // namespace godot
 

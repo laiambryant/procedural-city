@@ -90,6 +90,7 @@ private:
 	double hive_jitter = 0.45;
 	double hive_gap = 0.06;
 	Rect2 hive_flat_rect;
+	TypedArray<Rect2> carve_rects;
 	double hive_rim_boost = 0.0;
 	double hive_rim_falloff = 24.0;
 	bool hive_floor = true;
@@ -335,6 +336,12 @@ public:
 		_invalidate_cell_heights_cache();
 	}
 	Ref<Image> get_height_image() const { return _height_image; }
+
+	void set_carve_rects(const TypedArray<Rect2> &p_v) {
+		carve_rects = p_v.duplicate();
+		_invalidate_cell_heights_cache();
+	}
+	TypedArray<Rect2> get_carve_rects() const { return carve_rects.duplicate(); }
 
 	Dictionary get_cell_heights() const;
 

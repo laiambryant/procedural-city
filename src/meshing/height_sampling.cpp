@@ -199,3 +199,33 @@ bool godot::resolve_cell_heights(const Ref<Image> &p_image, const CellGrid &p_gr
 			min_rows);
 	return true;
 }
+
+int godot::carve_height_image(const Ref<Image> &p_image, const Vector2 &p_mesh_size, const TypedArray<Rect2> &p_rects) {
+	if (p_image.is_null() || p_image->is_empty() || p_image->is_compressed() || p_rects.is_empty() ||
+			p_mesh_size.x <= 0.0f || p_mesh_size.y <= 0.0f) {
+		return 0;
+	}
+	const int width = p_image->get_width();
+	const int height = p_image->get_height();
+	const float sx = (float)width / p_mesh_size.x;
+	const float sy = (float)height / p_mesh_size.y;
+	const Vector2 origin = -p_mesh_size * 0.5f;
+	int applied = 0;
+	for (int64_t i = 0; i < p_rects.size(); i++) {
+		const Rect2 rect = p_rects[i];
+		if (!rect.is_finite()) {
+			continue;
+		}
+		const Rect2 local = rect.abs();
+		const int x0 = CLAMP((int)Math::floor((local.position.x - origin.x) * sx), 0, width);
+		const int y0 = CLAMP((int)Math::floor((local.position.y - origin.y) * sy), 0, height);
+		const int x1 = CLAMP((int)Math::ceil((local.get_end().x - origin.x) * sx), 0, width);
+		const int y1 = CLAMP((int)Math::ceil((local.get_end().y - origin.y) * sy), 0, height);
+		if (x1 <= x0 || y1 <= y0) {
+			continue;
+		}
+		p_image->fill_rect(Rect2i(x0, y0, x1 - x0, y1 - y0), Color(0.0f, 0.0f, 0.0f, 1.0f));
+		applied++;
+	}
+	return applied;
+}

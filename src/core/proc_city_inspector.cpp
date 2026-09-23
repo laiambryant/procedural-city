@@ -18,6 +18,7 @@ void ProcCityGenerator::_bind_inspector_surface() {
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "base_height", PROPERTY_HINT_RANGE, "0,100,0.01"), "set_base_height", "get_base_height");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "height_power", PROPERTY_HINT_RANGE, "0.1,8,0.01"), "set_height_power", "get_height_power");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "block_inset", PROPERTY_HINT_RANGE, "0,0.45,0.01"), "set_block_inset", "get_block_inset");
+	ADD_PROPERTY(PropertyInfo(Variant::ARRAY, "carve_rects", PROPERTY_HINT_ARRAY_TYPE, "Rect2"), "set_carve_rects", "get_carve_rects");
 	ADD_PROPERTY(PropertyInfo(Variant::FLOAT, "clip_below_height", PROPERTY_HINT_RANGE, "0,100,0.01,suffix:m"), "set_clip_below_height", "get_clip_below_height");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "build_mode", PROPERTY_HINT_ENUM, "ArrayMesh,MultiMesh,CSG,HexHive,GridMap"), "set_build_mode", "get_build_mode");
 	ADD_PROPERTY(PropertyInfo(Variant::INT, "sample_filter", PROPERTY_HINT_ENUM, "Nearest,BoxAverage"), "set_sample_filter", "get_sample_filter");

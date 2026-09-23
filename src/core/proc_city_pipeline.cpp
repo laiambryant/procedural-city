@@ -108,6 +108,7 @@ Dictionary ProcCityGenerator::_snapshot_job(int p_stages) const {
 	job["hive_jitter"] = hive_jitter;
 	job["hive_gap"] = hive_gap;
 	job["hive_flat_rect"] = hive_flat_rect;
+	job["carve_rects"] = carve_rects.duplicate();
 	job["hive_rim_boost"] = hive_rim_boost;
 	job["hive_rim_falloff"] = hive_rim_falloff;
 	job["hive_floor"] = hive_floor;
