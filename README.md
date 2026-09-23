@@ -210,6 +210,20 @@ renderer can cull independently, `generate_occluders` adds per-tile occluders,
 and `clip_below_height` drops geometry buried under an opaque plane before it
 is ever allocated.
 
+## Carving a layout
+
+A game that plans its own streets can hand them to the generator:
+`carve_rects` takes mesh-local XZ rectangles (origin at the mesh centre) and
+flattens them in the displacement field as it is produced. Geometry,
+collision, `get_cell_heights()` and the clear-point queries all read the carved
+field, so avenues, plazas and arenas stay open ground while the blocks between
+them keep the procedural skyline. Contract: `demo/tests/carve_rects_contract.gd`.
+
+```gdscript
+gen.carve_rects = [Rect2(-200, -6, 400, 12), Rect2(-30, -30, 40, 40)]
+gen.generate_all()
+```
+
 ## Persisting a city
 
 With **Persist In Scene** on, a city generated in the editor is owned by the
