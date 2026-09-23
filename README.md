@@ -14,7 +14,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/media/procedural-city.gif" alt="Three cities generated back to back, each rising out of its displacement map" width="800">
+  <img src="docs/media/procedural-city.gif" alt="Four cities generated back to back, each rising out of dark water under its own sky" width="800">
 </p>
 
 <p align="center">
@@ -23,14 +23,17 @@
 
 <table align="center">
   <tr>
-    <td><img src="docs/media/sample-city-amber.png" width="266" alt="Generated city, amber palette"></td>
-    <td><img src="docs/media/sample-city-jade.png" width="266" alt="Generated city, jade palette"></td>
-    <td><img src="docs/media/sample-city-ember.png" width="266" alt="Generated city, ember palette"></td>
+    <td><img src="docs/media/sample-city-displacementx.png" width="400" alt="Generated city, DisplacementX palette"></td>
+    <td><img src="docs/media/sample-city-vaporwave.png" width="400" alt="Generated city, Vaporwave palette"></td>
+  </tr>
+  <tr>
+    <td><img src="docs/media/sample-city-aurora.png" width="400" alt="Generated city, Aurora palette"></td>
+    <td><img src="docs/media/sample-city-solar-flare.png" width="400" alt="Generated city, Solar Flare palette"></td>
   </tr>
 </table>
 
 <p align="center">
-  <sub>Same pipeline, three seeds — palette and skyline both fall out of the seed.</sub>
+  <sub>Same pipeline, four seeds and four palettes — DisplacementX (godisplacementx's default gradient), Vaporwave, Aurora and Solar Flare.</sub>
 </p>
 
 ---
@@ -77,16 +80,18 @@ scene straight from the command line:
 godot --path demo
 ```
 
-The showcase generates three fixed seeds at startup, then orbits the cached
-cities on a 15 s loop, five seconds each. Blocks are meshed with no inset, so
+The showcase generates four fixed seeds at startup, each with its own palette,
+then orbits the cached cities on a 20 s loop, five seconds each. Blocks are meshed with no inset, so
 neighbouring cells of the same height merge into a single roof instead of
 standing apart as separate boxes, and the generator is sunk by
-`clip_below_height` so the low ground never surfaces through the street plane.
+`clip_below_height` so the low ground stays under the water line and the
+blocks rise out of it.
 Rendering the animation is separate from the actual generation time; the
 console reports generation timings.
 
-The Forward+ showcase includes a dusk WorldEnvironment, animated volumetric
-clouds adapted from The Beehive's Level 0, a paved terrace and distant hills.
+The Forward+ showcase stands the city in still, reflective water with a faint
+neon survey grid, under animated volumetric clouds adapted from The Beehive's
+Level 0. Sky, fog, light and grid colours change with each city's palette.
 Its resources are self-contained in `demo/environment/`; see the
 [environment notes](demo/environment/README.md) for provenance and tuning.
 
@@ -100,7 +105,8 @@ python3 scripts/record_showcase.py --preview-time 2.7 --output /tmp/city.png
 
 The recorder hosts the demo in a fixed 1280×720 SubViewport — a window manager
 is free to resize the OS window, which would otherwise change the frame size —
-then writes an optimized 800 px GIF and the three sample PNGs. The timeline is
+then writes an 800 px GIF — one colour table per city, so each sky keeps its
+gradients — and the four sample PNGs. The timeline is
 a function of frame number, so slow rendering cannot change the camera path or
 skip animation frames.
 

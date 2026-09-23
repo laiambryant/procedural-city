@@ -101,8 +101,8 @@ matching albedo and normal maps. Adjust seeds, palettes, grid density, height
 and geometry settings in the inspector or from GDScript. The native CPU and GPU
 backends run inside the extension. Optional collision and height queries make
 the generated geometry usable in a game. A separate Forward+ demo presents
-three seeded cities with animated clouds, dusk lighting and a landscaped
-setting. See the included README for installation and the tested platform and
+four seeded cities, each with its own palette and sky, rising out of
+reflective water under animated clouds. See the included README for installation and the tested platform and
 Godot version matrix.
 
 Suggested existing tags: **3D**, **Procedural Generation**, **GDExtension**,
